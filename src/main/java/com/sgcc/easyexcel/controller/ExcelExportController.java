@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -264,11 +265,11 @@ public class ExcelExportController {
     public ExcelExportResponse stopTask(@PathVariable String taskId) {
         log.info("停止任务：taskId={}", taskId);
         try {
-            boolean stopped = taskManager.stopTask(taskId);
+            boolean stopped = taskManager.stopExportTask(taskId);
             if (stopped) {
                 return ExcelExportResponse.success("任务已停止");
             } else {
-                return ExcelExportResponse.error(ExcelErrorCode.TASK_NOT_FOUND.getCode(), "任务不存在或已结束");
+                return ExcelExportResponse.error(404, "任务不存在或已结束");
             }
         } catch (Exception e) {
             log.error("停止任务失败：taskId={}", taskId, e);

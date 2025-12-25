@@ -1,0 +1,126 @@
+server:
+  port: 8222
+  servlet:
+    context-path: /excel-service
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+    accept-count: 100
+
+spring:
+  application:
+    name: excel-export-service
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+  web:
+    resources:
+      add-mappings: true
+  mvc:
+    throw-exception-if-no-handler-found: false
+    static-path-pattern: /**
+
+# Excel配置
+excel:
+  # 模板配置
+  template:
+    # 默认模板目录
+    default-dir: E:\00_WorkSpace\DK\easyexcel\excel-templates
+    # 支持的文件扩展名
+    allowed-extensions:
+      - .xlsx
+      - .xls
+    # 模板缓存（提升性能）
+    cache:
+      enabled: true
+      max-size: 50
+      expire-minutes: 30
+  
+  # 导出配置
+  export:
+    # 默认导出目录
+    default-dir: E:\00_WorkSpace\DK\easyexcel\excel-exports
+    # 文件名生成策略：timestamp/uuid/original
+    filename-strategy: timestamp
+    # 时间戳格式
+    timestamp-format: yyyyMMddHHmmss
+    # 是否自动创建目录
+    auto-create-dir: true
+    # 文件重名处理：overwrite/rename/error
+    duplicate-strategy: rename
+    # Sheet名称前缀
+    sheet-name-prefix: 数据表
+  
+  # 数据填充配置
+  fill:
+    # 默认起始行
+    default-start-row: 2
+    # 表头行
+    header-row: 1
+    # 字段匹配策略：exact/ignore-case/smart
+    field-match-strategy: ignore-case
+  
+  # 大数据模式配置
+  big-data:
+    # 默认批次大小
+    default-batch-size: 5000
+    # 数据量阈值（超过此值建议启用大数据模式）
+    threshold: 50000
+    # 最大允许数据量（防止超大数据）
+    max-rows: 1000000
+    # 单个Sheet最大行数（超过此值将自动拆分到多个Sheet）
+    max-rows-per-sheet: 50000
+  
+  # 性能监控
+  monitor:
+    # 是否启用性能监控
+    enabled: true
+    # 慢导出阈值（毫秒）
+    slow-threshold: 5000
+    # 是否记录详细日志
+    detail-log: true
+  
+  # 线程池配置（高并发）
+  thread-pool:
+    # 核心线程数
+    core-pool-size: 10
+    # 最大线程数
+    max-pool-size: 50
+    # 队列容量
+    queue-capacity: 200
+    # 线程空闲时间（秒）
+    keep-alive-seconds: 60
+    # 线程名称前缀
+    thread-name-prefix: excel-export-
+
+# Knife4j 和 SpringDoc 文档配置
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+    enable-version: true
+    enable-swagger-models: true
+    enable-footer-custom: false
+    enable-dynamic-parameter: true
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  show-actuator: false
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+# 日志配置
+logging:
+  level:
+    com.sgcc.easyexcel: INFO
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'

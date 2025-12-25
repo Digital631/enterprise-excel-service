@@ -1,0 +1,145 @@
+================================================================================
+                    Excel导出服务 - 使用指南
+================================================================================
+
+一、启动应用
+------------
+1. 确保已安装 JDK 17+
+2. 运行命令：mvn spring-boot:run
+3. 访问 Swagger 文档：http://localhost:8222/excel-service/swagger-ui.html
+4. 访问 Knife4j 文档：http://localhost:8222/excel-service/doc.html
+
+二、创建模板文件
+----------------
+1. 在 E:/excel-templates/ 目录下创建Excel模板文件
+2. 模板第1行为表头（如：姓名、年龄、部门、工资）
+3. 第2行开始为数据区（可以为空或包含占位符如 {userName}）
+4. 支持公式、样式、合并单元格等
+
+示例模板结构：
+┌──────┬──────┬──────┬──────┐
+│ 姓名  │ 年龄  │ 部门  │ 工资  │  <- 第1行：表头
+├──────┼──────┼──────┼──────┤
+│      │      │      │      │  <- 第2行开始：数据区（可包含占位符）
+└──────┴──────┴──────┴──────┘
+
+三、调用接口导出
+----------------
+
+### 1. 简单导出（小数据量）
+
+POST http://localhost:8222/excel-service/api/excel/export/single
+Content-Type: application/json
+
+{
+  "templatePath": "员工统计表",
+  "data": [
+    {"userName": "张三", "age": 25, "department": "研发部", "salary": 10000},
+    {"userName": "李四", "age": 30, "department": "市场部", "salary": 12000}
+  ]
+}
+
+### 2. 带字段映射导出
+
+{
+  "templatePath": "E:/excel-templates/员工统计表.xlsx",
+  "data": [
+    {"name": "张三", "age": 25, "dept": "研发部"}
+  ],
+  "fieldMapping": {
+    "姓名": "name",
+    "年龄": "age",
+    "部门": "dept"
+  }
+}
+
+### 3. 大数据量导出（10万+）
+
+{
+  "templatePath": "订单明细表",
+  "data": [...100000条数据...],
+  "enableBigDataMode": true,
+  "batchSize": 5000,
+  "exportFileName": "2023年订单明细.xlsx"
+}
+
+### 4. 大数据量自动多Sheet拆分（超过单个Sheet最大行数时）
+
+{
+  "templatePath": "订单明细表",
+  "data": [...200000条数据...],
+  "enableBigDataMode": true,
+  "maxRowsPerSheet": 50000,  // 单个Sheet最大5万行，超过将自动拆分到多个Sheet
+  "batchSize": 5000,
+  "exportFileName": "2023年订单明细.xlsx"
+}
+
+### 5. 自定义导出目录
+
+{
+  "templatePath": "报表模板",
+  "data": [...],
+  "exportDir": "E:/custom-exports/",
+  "exportFileName": "月度报表.xlsx"
+}
+
+### 6. 占位符填充（适用于文档级别的数据填充）
+
+{
+  "templatePath": "员工统计表",
+  "data": [...],
+  "placeholders": {
+    "reportTitle": "2023年度员工统计",
+    "reportDate": "2023-12-25",
+    "department": "研发部"
+  }
+}
+
+四、响应结果
+------------
+{
+  "success": true,
+  "code": 200,
+  "message": "导出成功",
+  "data": {
+    "filePath": "E:/00_WorkSpace/DK/easyexcel/excel-exports/2023年员工统计.xlsx",
+    "fileName": "2023年员工统计.xlsx",
+    "fileSize": 12345,
+    "exportTime": "2023-12-25 10:30:45",
+    "exportDuration": 1234,
+    "exportDurationSeconds": 1.23
+  }
+}
+
+五、性能指标
+------------
+- 1万以内数据：响应时间 < 3秒
+- 10万数据（大数据模式）：响应时间 < 30秒
+- 支持50个并发请求
+
+六、错误码说明
+--------------
+200 - 导出成功
+400 - 参数错误
+500 - 系统错误
+1001 - 模板文件不存在
+1002 - 模板路径为空
+1003 - 模板格式错误
+1004 - 数据为空
+1005 - 文件写入错误
+1006 - 导出目录不存在
+1007 - 模板表头错误
+
+七、常见问题
+------------
+Q: 为什么导出的Excel第二行是空白的？
+A: 请确保startRow参数设置正确。默认值为2，表示从Excel的第2行开始填充数据。
+
+Q: 如何处理大数据量导出？
+A: 当数据量超过1万条时，请将enableBigDataMode设置为true，系统将自动采用分批写入方式防止内存溢出。
+
+Q: 如何自定义导出目录？
+A: 在请求参数中指定exportDir字段，如 "exportDir": "E:/custom-exports/"。
+
+Q: 如何使用字段映射？
+A: 当模板表头与数据字段名不一致时，使用fieldMapping参数建立映射关系，如 {"姓名": "userName"}。

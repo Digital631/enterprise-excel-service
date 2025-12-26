@@ -269,8 +269,25 @@ public class ExcelExportServiceImpl implements ExcelExportService {
                 updateSheetName(outputFile, request.getSheetName());
             }
         } else if (request.getData() != null && !request.getData().isEmpty()) {
-            // 只有数据，使用POI直接填充
-            fillDataToExcelFile(outputFile, request);
+            // 检查数据中是否包含文档级占位符（只有一行数据时）
+            if (request.getData().size() == 1 && hasDocumentLevelPlaceholders(templateFile, request.getData().get(0))) {
+                // 数据中包含文档级占位符，合并到placeholders中
+                Map<String, Object> placeholders = new HashMap<>(request.getPlaceholders() != null ? request.getPlaceholders() : new HashMap<>());
+                placeholders.putAll(request.getData().get(0));
+                
+                excelTemplateUtil.fillTemplate(templateFile.getAbsolutePath(), 
+                    outputFile.getAbsolutePath(), 
+                    null, 
+                    placeholders);
+                
+                // 如果需要更新Sheet名称，单独处理
+                if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
+                    updateSheetName(outputFile, request.getSheetName());
+                }
+            } else {
+                // 只有数据，使用POI直接填充
+                fillDataToExcelFile(outputFile, request);
+            }
         } else {
             // 既没有占位符也没有数据，直接复制模板
             try (FileInputStream fis = new FileInputStream(templateFile);
@@ -597,6 +614,58 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         } else {
             cell.setCellValue(value.toString());
         }
+    }
+
+    /**
+     * 检查模板中是否包含文档级占位符，并且数据中包含对应的字段
+     */
+    private boolean hasDocumentLevelPlaceholders(File templateFile, Map<String, Object> data) {
+        try (FileInputStream fis = new FileInputStream(templateFile);
+             org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(fis)) {
+            
+            // 遍历所有Sheet
+            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
+                org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(sheetIndex);
+                
+                // 遍历所有行和列
+                for (org.apache.poi.ss.usermodel.Row row : sheet) {
+                    if (row != null) {
+                        for (org.apache.poi.ss.usermodel.Cell cell : row) {
+                            if (cell != null && cell.getCellType() == CellType.STRING) {
+                                String cellValue = cell.getStringCellValue();
+                                if (cellValue != null) {
+                                    // 检查是否包含${fieldName}格式的占位符
+                                    for (String fieldName : data.keySet()) {
+                                        String placeholder = "${" + fieldName + "}";
+                                        if (cellValue.contains(placeholder)) {
+                                            return true;
+                                        }
+                                    }
+                                    // 检查是否包含{.fieldName}格式的占位符
+                                    for (String fieldName : data.keySet()) {
+                                        String placeholder = "{." + fieldName + "}";
+                                        if (cellValue.contains(placeholder)) {
+                                            return true;
+                                        }
+                                    }
+                                    // 检查是否包含{fieldName}格式的占位符
+                                    for (String fieldName : data.keySet()) {
+                                        String placeholder = "{" + fieldName + "}";
+                                        if (cellValue.contains(placeholder)) {
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("检查文档级占位符失败：{}", templateFile.getAbsolutePath(), e);
+        }
+        
+        return false;
     }
 
     /**

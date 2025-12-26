@@ -22,7 +22,7 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Sheet数据配置")
+@Schema(description = "Sheet数据配置，用于多Sheet导出时配置每个Sheet的数据和映射关系")
 public class SheetDataConfig {
 
     @NotNull(message = "Sheet索引不能为空")

@@ -55,6 +55,7 @@ public class ExcelExportController {
      *     <li>支持模板路径或模板名称</li>
      *     <li>支持字段映射配置</li>
      *     <li>支持大数据模式（10万+数据）</li>
+     *     <li>支持多种占位符格式（数据行占位符如{userName}、文档级占位符如${time}等）</li>
      *     <li>保留模板公式自动计算</li>
      *     <li>高并发线程池处理</li>
      * </ul>
@@ -80,6 +81,11 @@ public class ExcelExportController {
      *     "年龄": "age",
      *     "工资": "salary"
      *   },
+     *   "placeholders": {
+     *     "reportTitle": "2023年度员工统计",
+     *     "reportDate": "2023-12-25",
+     *     "time": "14:30:00"
+     *   },
      *   "enableBigDataMode": false,
      *   "batchSize": 5000
      * }
@@ -91,8 +97,9 @@ public class ExcelExportController {
     @PostMapping("/export/single")
     @Operation(
             summary = "单Sheet导出",
-            description = "基于模板导出单个Sheet的Excel文件，支持大数据量处理和灵活的字段映射。" +
-                    "当数据量超过1万条时，建议启用大数据模式以防止内存溢出。"
+            description = "基于模板导出单个Sheet的Excel文件，支持大数据量处理、灵活的字段映射和多种占位符格式。" +
+                    "当数据量超过1万条时，建议启用大数据模式以防止内存溢出。" +
+                    "支持数据行占位符（如{userName}）和文档级占位符（如${time}、{date}等）。"
     )
     @ApiResponse(
             responseCode = "200",
@@ -301,7 +308,7 @@ public class ExcelExportController {
     @Operation(
             summary = "多Sheet导出（预留）",
             description = "基于模板导出包含多个Sheet的Excel文件，适用于综合报表等场景。" +
-                    "每个Sheet可以独立配置数据源和字段映射。"
+                    "每个Sheet可以独立配置数据源和字段映射，支持文档级占位符填充。"
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "导出成功"),

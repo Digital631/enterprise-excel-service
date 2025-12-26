@@ -52,6 +52,6 @@ public class MultiSheetExportRequest {
             defaultValue = "false")
     private Boolean enableBigDataMode = false;
     
-    @Schema(description = "占位符数据，用于填充模板中的占位符，如{title}、{date}等", 
-            example = "{\"title\":\"综合报表\",\"date\":\"2023-12-22\"}")
+    @Schema(description = "占位符数据，用于填充模板中的文档级占位符，支持多种格式如{title}、{date}、${time}、${year}等", 
+            example = "{\"title\":\"综合报表\",\"date\":\"2023-12-22\",\"time\":\"14:30:00\"}")
     private Map<String, Object> placeholders;}

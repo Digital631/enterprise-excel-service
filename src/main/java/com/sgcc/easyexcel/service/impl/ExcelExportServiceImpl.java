@@ -13,6 +13,7 @@ import com.sgcc.easyexcel.util.FileNameGenerator;
 import com.sgcc.easyexcel.util.TaskManager;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.core.io.ClassPathResource;
@@ -653,45 +654,23 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      * 检查模板中是否包含文档级占位符，并且数据中包含对应的字段
      */
     private boolean hasDocumentLevelPlaceholders(File templateFile, Map<String, Object> data) {
-        try (FileInputStream fis = new FileInputStream(templateFile);
-             org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(fis)) {
-            
-            // 遍历所有Sheet
-            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
-                org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(sheetIndex);
-                
-                // 遍历所有行和列
-                for (org.apache.poi.ss.usermodel.Row row : sheet) {
-                    if (row != null) {
-                        for (org.apache.poi.ss.usermodel.Cell cell : row) {
-                            if (cell != null && cell.getCellType() == CellType.STRING) {
-                                String cellValue = cell.getStringCellValue();
-                                if (cellValue != null) {
-                                    // 检查是否包含${fieldName}格式的占位符
-                                    for (String fieldName : data.keySet()) {
-                                        String placeholder = "${" + fieldName + "}";
-                                        if (cellValue.contains(placeholder)) {
-                                            return true;
-                                        }
-                                    }
-                                    // 检查是否包含{.fieldName}格式的占位符
-                                    for (String fieldName : data.keySet()) {
-                                        String placeholder = "{." + fieldName + "}";
-                                        if (cellValue.contains(placeholder)) {
-                                            return true;
-                                        }
-                                    }
-                                    // 检查是否包含{fieldName}格式的占位符
-                                    for (String fieldName : data.keySet()) {
-                                        String placeholder = "{" + fieldName + "}";
-                                        if (cellValue.contains(placeholder)) {
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+        try {
+            // 根据文件扩展名选择适当的Workbook类型
+            if (templateFile.getName().toLowerCase().endsWith(".xlsx")) {
+                try (FileInputStream fis = new FileInputStream(templateFile);
+                     org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(fis)) {
+                    return scanForPlaceholders(workbook, data);
+                }
+            } else if (templateFile.getName().toLowerCase().endsWith(".xls")) {
+                try (FileInputStream fis = new FileInputStream(templateFile);
+                     org.apache.poi.hssf.usermodel.HSSFWorkbook workbook = new org.apache.poi.hssf.usermodel.HSSFWorkbook(fis)) {
+                    return scanForPlaceholders(workbook, data);
+                }
+            } else {
+                // 尝试使用WorkbookFactory自动识别文件类型
+                try (FileInputStream fis = new FileInputStream(templateFile);
+                     org.apache.poi.ss.usermodel.Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(fis)) {
+                    return scanForPlaceholders(workbook, data);
                 }
             }
         } catch (Exception e) {
@@ -700,24 +679,102 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         
         return false;
     }
+    
+    /**
+     * 扫描工作簿中的占位符
+     */
+    private boolean scanForPlaceholders(org.apache.poi.ss.usermodel.Workbook workbook, Map<String, Object> data) {
+        // 遍历所有Sheet
+        for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(sheetIndex);
+            
+            // 遍历所有行和列
+            for (org.apache.poi.ss.usermodel.Row row : sheet) {
+                if (row != null) {
+                    for (org.apache.poi.ss.usermodel.Cell cell : row) {
+                        if (cell != null && cell.getCellType() == CellType.STRING) {
+                            String cellValue = cell.getStringCellValue();
+                            if (cellValue != null) {
+                                // 检查是否包含${fieldName}格式的占位符
+                                for (String fieldName : data.keySet()) {
+                                    String placeholder = "${" + fieldName + "}";
+                                    if (cellValue.contains(placeholder)) {
+                                        return true;
+                                    }
+                                }
+                                // 检查是否包含{.fieldName}格式的占位符
+                                for (String fieldName : data.keySet()) {
+                                    String placeholder = "{." + fieldName + "}";
+                                    if (cellValue.contains(placeholder)) {
+                                        return true;
+                                    }
+                                }
+                                // 检查是否包含{fieldName}格式的占位符
+                                for (String fieldName : data.keySet()) {
+                                    String placeholder = "{" + fieldName + "}";
+                                    if (cellValue.contains(placeholder)) {
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
 
     /**
      * 对Excel文件进行密码加密
      */
     private void encryptExcelFile(File outputFile, String password) throws IOException {
-        // 由于POI的XSSF加密功能需要特殊处理，这里我们仅设置工作表保护
-        try (FileInputStream fis = new FileInputStream(outputFile);
-             XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
-            
-            // 设置工作表保护（使用密码）
-            for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
-                Sheet sheet = workbook.getSheetAt(i);
-                sheet.protectSheet(password);
+        // 由于POI的加密功能需要根据文件类型选择适当的方式，这里我们设置工作表保护
+        if (outputFile.getName().toLowerCase().endsWith(".xlsx")) {
+            try (FileInputStream fis = new FileInputStream(outputFile);
+                 XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
+                
+                // 设置工作表保护（使用密码）
+                for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                    Sheet sheet = workbook.getSheetAt(i);
+                    sheet.protectSheet(password);
+                }
+                
+                // 保存到原文件
+                try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                    workbook.write(fos);
+                }
             }
-            
-            // 保存到原文件
-            try (FileOutputStream fos = new FileOutputStream(outputFile)) {
-                workbook.write(fos);
+        } else if (outputFile.getName().toLowerCase().endsWith(".xls")) {
+            try (FileInputStream fis = new FileInputStream(outputFile);
+                 HSSFWorkbook workbook = new HSSFWorkbook(fis)) {
+                
+                // 设置工作表保护（使用密码）
+                for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                    Sheet sheet = workbook.getSheetAt(i);
+                    sheet.protectSheet(password);
+                }
+                
+                // 保存到原文件
+                try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                    workbook.write(fos);
+                }
+            }
+        } else {
+            // 尝试使用WorkbookFactory自动识别文件类型
+            try (FileInputStream fis = new FileInputStream(outputFile);
+                 org.apache.poi.ss.usermodel.Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(fis)) {
+                
+                // 设置工作表保护（使用密码）
+                for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                    org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(i);
+                    sheet.protectSheet(password);
+                }
+                
+                // 保存到原文件
+                try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                    workbook.write(fos);
+                }
             }
         }
     }
@@ -745,26 +802,73 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      * 向Excel文件填充数据
      */
     private void fillDataToExcelFile(File outputFile, SingleSheetExportRequest request) throws IOException {
-        // 读取已填充占位符的Excel文件
-        try (FileInputStream fis = new FileInputStream(outputFile);
-             XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
-            
-            Sheet sheet = workbook.getSheetAt(0);
-            
-            // 如果有数据需要填充，使用POI直接填充数据
-            if (request.getData() != null && !request.getData().isEmpty()) {
-                // 使用POI直接填充数据到指定行
-                fillDataToSheet(sheet, request.getData(), request.getStartRow(), request.getFieldMapping());
+        // 读取已填充占位符的Excel文件，根据文件扩展名选择适当的Workbook类型
+        if (outputFile.getName().toLowerCase().endsWith(".xlsx")) {
+            try (FileInputStream fis = new FileInputStream(outputFile);
+                 XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
+                
+                Sheet sheet = workbook.getSheetAt(0);
+                
+                // 如果有数据需要填充，使用POI直接填充数据
+                if (request.getData() != null && !request.getData().isEmpty()) {
+                    // 使用POI直接填充数据到指定行
+                    fillDataToSheet(sheet, request.getData(), request.getStartRow(), request.getFieldMapping());
+                }
+                
+                // 如果需要更新Sheet名称
+                if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
+                    workbook.setSheetName(0, request.getSheetName());
+                }
+                
+                // 保存修改
+                try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                    workbook.write(fos);
+                }
             }
-            
-            // 如果需要更新Sheet名称
-            if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
-                workbook.setSheetName(0, request.getSheetName());
+        } else if (outputFile.getName().toLowerCase().endsWith(".xls")) {
+            try (FileInputStream fis = new FileInputStream(outputFile);
+                 HSSFWorkbook workbook = new HSSFWorkbook(fis)) {
+                
+                Sheet sheet = workbook.getSheetAt(0);
+                
+                // 如果有数据需要填充，使用POI直接填充数据
+                if (request.getData() != null && !request.getData().isEmpty()) {
+                    // 使用POI直接填充数据到指定行
+                    fillDataToSheet(sheet, request.getData(), request.getStartRow(), request.getFieldMapping());
+                }
+                
+                // 如果需要更新Sheet名称
+                if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
+                    workbook.setSheetName(0, request.getSheetName());
+                }
+                
+                // 保存修改
+                try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                    workbook.write(fos);
+                }
             }
-            
-            // 保存修改
-            try (FileOutputStream fos = new FileOutputStream(outputFile)) {
-                workbook.write(fos);
+        } else {
+            // 尝试使用WorkbookFactory自动识别文件类型
+            try (FileInputStream fis = new FileInputStream(outputFile);
+                 org.apache.poi.ss.usermodel.Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(fis)) {
+                
+                org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(0);
+                
+                // 如果有数据需要填充，使用POI直接填充数据
+                if (request.getData() != null && !request.getData().isEmpty()) {
+                    // 使用POI直接填充数据到指定行
+                    fillDataToSheet(sheet, request.getData(), request.getStartRow(), request.getFieldMapping());
+                }
+                
+                // 如果需要更新Sheet名称
+                if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
+                    workbook.setSheetName(0, request.getSheetName());
+                }
+                
+                // 保存修改
+                try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                    workbook.write(fos);
+                }
             }
         }
     }
@@ -773,20 +877,64 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      * 获取模板路径
      */
     private String getTemplatePath(String templateName) {
+
+        // 1. classpath 方式
         if (templateName.startsWith("classpath:")) {
+            String relativePath = templateName.substring("classpath:".length());
             try {
-                ClassPathResource resource = new ClassPathResource(templateName.substring(10));
+                ClassPathResource resource = new ClassPathResource(relativePath);
                 return resource.getFile().getAbsolutePath();
             } catch (IOException e) {
                 throw new RuntimeException("无法找到模板文件：" + templateName, e);
             }
-        } else if (new File(templateName).exists()) {
-            return templateName;
-        } else {
-            String path = excelConfig.getTemplatePath() + "/" + templateName + ".xlsx";
-            return path.replace("//", "/");
         }
+
+        // 2. 绝对路径 / 相对路径，且文件已存在
+        File directFile = new File(templateName);
+        if (directFile.exists()) {
+            return directFile.getAbsolutePath();
+        }
+
+        // 3. 根据配置目录 + 模板名 自动匹配 xlsx / xls
+        String basePath = excelConfig.getTemplatePath();
+        String normalizedName = templateName.trim();
+
+        // 已经带后缀的情况
+        if (normalizedName.endsWith(".xlsx") || normalizedName.endsWith(".xls")) {
+            File file = new File(basePath, normalizedName);
+            if (file.exists()) {
+                return file.getAbsolutePath();
+            }
+        } else {
+            // 依次尝试 xlsx / xls
+            File xlsx = new File(basePath, normalizedName + ".xlsx");
+            if (xlsx.exists()) {
+                return xlsx.getAbsolutePath();
+            }
+
+            File xls = new File(basePath, normalizedName + ".xls");
+            if (xls.exists()) {
+                return xls.getAbsolutePath();
+            }
+        }
+
+        throw new ExcelExportException(ExcelErrorCode.TEMPLATE_NOT_FOUND,templateName);
     }
+    //private String getTemplatePath(String templateName) {
+    //    if (templateName.startsWith("classpath:")) {
+    //        try {
+    //            ClassPathResource resource = new ClassPathResource(templateName.substring(10));
+    //            return resource.getFile().getAbsolutePath();
+    //        } catch (IOException e) {
+    //            throw new RuntimeException("无法找到模板文件：" + templateName, e);
+    //        }
+    //    } else if (new File(templateName).exists()) {
+    //        return templateName;
+    //    } else {
+    //        String path = excelConfig.getTemplatePath() + "/" + templateName + ".xlsx";
+    //        return path.replace("//", "/");
+    //    }
+    //}
 
     /**
      * 生成输出路径

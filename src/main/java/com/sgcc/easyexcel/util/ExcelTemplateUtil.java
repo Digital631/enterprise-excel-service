@@ -1,4 +1,4 @@
-  package com.sgcc.easyexcel.util;
+    package com.sgcc.easyexcel.util;
 
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
@@ -11,6 +11,8 @@ import com.sgcc.easyexcel.exception.ExcelExportException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -61,6 +63,13 @@ public class ExcelTemplateUtil {
 
         // 模板名称，从配置目录查找
         String defaultDir = excelConfig.getTemplate().getDefaultDir();
+        
+        // 首先在模板目录中查找已存在的同名文件（不同扩展名）
+        String existingFilePath = findExistingTemplateFile(templatePath);
+        if (existingFilePath != null) {
+            return existingFilePath;
+        }
+        
         String fullPath = defaultDir + File.separator + templatePath;
 
         // 如果没有扩展名，尝试添加
@@ -85,10 +94,17 @@ public class ExcelTemplateUtil {
                 file = new File(actualPath);
                 templatePath = actualPath;
             } else {
-                throw new ExcelExportException(
-                        ExcelErrorCode.TEMPLATE_NOT_FOUND,
-                        "模板文件不存在：" + templatePath
-                );
+                // 再次尝试在模板目录中查找已存在的同名文件
+                String existingFilePath = findExistingTemplateFile(new File(templatePath).getName());
+                if (existingFilePath != null) {
+                    file = new File(existingFilePath);
+                    templatePath = existingFilePath;
+                } else {
+                    throw new ExcelExportException(
+                            ExcelErrorCode.TEMPLATE_NOT_FOUND,
+                            "模板文件不存在：" + templatePath
+                    );
+                }
             }
         }
 
@@ -136,6 +152,31 @@ public class ExcelTemplateUtil {
         
         String basePath = templatePath.substring(0, lastDotIndex);
         List<String> allowedExtensions = excelConfig.getTemplate().getAllowedExtensions();
+        
+        // 首先尝试在模板目录中查找已存在的同名文件（不同扩展名）
+        String defaultDir = excelConfig.getTemplate().getDefaultDir();
+        File dir = new File(defaultDir);
+        
+        if (dir.exists() && dir.isDirectory()) {
+            String originalFileName = new File(basePath).getName();
+            String fileNameWithoutExt;
+            if (originalFileName.lastIndexOf('.') != -1) {
+                fileNameWithoutExt = originalFileName.substring(0, originalFileName.lastIndexOf('.'));
+            } else {
+                fileNameWithoutExt = originalFileName;
+            }
+            
+            // 查找目录中所有匹配的文件
+            File[] files = dir.listFiles((d, name) -> 
+                name.toLowerCase().startsWith(fileNameWithoutExt + ".") && 
+                allowedExtensions.stream().anyMatch(ext -> name.toLowerCase().endsWith(ext))
+            );
+            
+            if (files != null && files.length > 0) {
+                // 如果找到匹配的文件，返回第一个匹配项
+                return new File(defaultDir, files[0].getName()).getAbsolutePath();
+            }
+        }
         
         // 尝试所有允许的扩展名
         for (String ext : allowedExtensions) {
@@ -299,13 +340,20 @@ public class ExcelTemplateUtil {
      * 尝试添加扩展名
      */
     private String tryAddExtension(String path) {
-        // 按优先级尝试
+        // 首先尝试在模板目录中查找已存在的同名文件（不同扩展名）
+        String existingFilePath = findExistingTemplateFile(new File(path).getName());
+        if (existingFilePath != null) {
+            return existingFilePath;
+        }
+        
+        // 按优先级尝试添加扩展名
         for (String ext : List.of(".xlsx", ".xls")) {
             String fullPath = path + ext;
             if (new File(fullPath).exists()) {
                 return fullPath;
             }
         }
+        
         // 默认返回 .xlsx
         return path + ".xlsx";
     }
@@ -373,40 +421,140 @@ public class ExcelTemplateUtil {
             // 如果模板中包含 {fieldName} 格式的占位符，需要预处理模板
             String processedTemplatePath = preprocessTemplate(templatePath, data);
 
-            if (placeholders != null && !placeholders.isEmpty()) {
-                // 先填充占位符（文档级别的数据）
-                EasyExcel.write(outputPath)
-                        .withTemplate(processedTemplatePath)
-                        .sheet()
-                        .doFill(placeholders);
-                
-                // 然后基于已填充占位符的文件再次填充数据
-                if (data != null && !data.isEmpty()) {
-                    EasyExcel.write(outputPath)
-                            .withTemplate(outputPath) // 使用已填充占位符的文件作为模板
-                            .sheet()
-                            .doFill(data);
-                }
-            } else {
-                // 直接填充数据
-                if (data != null && !data.isEmpty()) {
-                    // 如果只有一行数据，我们直接用这一行数据替换模板中的占位符
-                    if (data.size() == 1) {
-                        // 使用POI直接处理单行数据的占位符替换
-                        replacePlaceholdersInTemplate(processedTemplatePath, outputPath, data.get(0));
-                    } else {
-                        // 多行数据使用EasyExcel的doFill方法
-                        EasyExcel.write(outputPath)
+            // 尝试使用EasyExcel处理，如果失败则使用POI直接处理
+            boolean success = false;
+            try {
+                if (placeholders != null && !placeholders.isEmpty()) {
+                    // 先填充占位符（文档级别的数据）
+                    // 根据输出文件扩展名选择适当的写入方式
+                    if (outputPath.toLowerCase().endsWith(".xlsx")) {
+                        EasyExcel.write(outputPath, Map.class)
                                 .withTemplate(processedTemplatePath)
-                                .registerWriteHandler(new LongestMatchColumnWidthStyleStrategy())
                                 .sheet()
-                                .doFill(data);
+                                .doFill(placeholders);
+                    } else if (outputPath.toLowerCase().endsWith(".xls")) {
+                        EasyExcel.write(outputPath, Map.class)
+                                .withTemplate(processedTemplatePath)
+                                .sheet()
+                                .doFill(placeholders);
+                    } else {
+                        // 默认使用.xlsx格式
+                        EasyExcel.write(outputPath, Map.class)
+                                .withTemplate(processedTemplatePath)
+                                .sheet()
+                                .doFill(placeholders);
+                    }
+                    
+                    // 然后基于已填充占位符的文件再次填充数据
+                    if (data != null && !data.isEmpty()) {
+                        // 根据输出文件扩展名选择适当的写入方式
+                        if (outputPath.toLowerCase().endsWith(".xlsx")) {
+                            EasyExcel.write(outputPath, Map.class)
+                                    .withTemplate(outputPath) // 使用已填充占位符的文件作为模板
+                                    .sheet()
+                                    .doFill(data);
+                        } else if (outputPath.toLowerCase().endsWith(".xls")) {
+                            EasyExcel.write(outputPath, Map.class)
+                                    .withTemplate(outputPath) // 使用已填充占位符的文件作为模板
+                                    .sheet()
+                                    .doFill(data);
+                        } else {
+                            // 默认使用.xlsx格式
+                            EasyExcel.write(outputPath, Map.class)
+                                    .withTemplate(outputPath) // 使用已填充占位符的文件作为模板
+                                    .sheet()
+                                    .doFill(data);
+                        }
                     }
                 } else {
-                    // 没有数据，直接复制模板
-                    java.nio.file.Path sourcePath = java.nio.file.Paths.get(processedTemplatePath);
-                    java.nio.file.Path targetPath = java.nio.file.Paths.get(outputPath);
-                    java.nio.file.Files.copy(sourcePath, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    // 直接填充数据
+                    if (data != null && !data.isEmpty()) {
+                        // 如果只有一行数据，我们直接用这一行数据替换模板中的占位符
+                        if (data.size() == 1) {
+                            // 使用POI直接处理单行数据的占位符替换
+                            replacePlaceholdersInTemplate(processedTemplatePath, outputPath, data.get(0));
+                        } else {
+                            // 多行数据使用EasyExcel的doFill方法
+                            // 根据输出文件扩展名选择适当的写入方式
+                            if (outputPath.toLowerCase().endsWith(".xlsx")) {
+                                EasyExcel.write(outputPath, Map.class)
+                                        .withTemplate(processedTemplatePath)
+                                        .registerWriteHandler(new LongestMatchColumnWidthStyleStrategy())
+                                        .sheet()
+                                        .doFill(data);
+                            } else if (outputPath.toLowerCase().endsWith(".xls")) {
+                                EasyExcel.write(outputPath, Map.class)
+                                        .withTemplate(processedTemplatePath)
+                                        .registerWriteHandler(new LongestMatchColumnWidthStyleStrategy())
+                                        .sheet()
+                                        .doFill(data);
+                            } else {
+                                // 默认使用.xlsx格式
+                                EasyExcel.write(outputPath, Map.class)
+                                        .withTemplate(processedTemplatePath)
+                                        .registerWriteHandler(new LongestMatchColumnWidthStyleStrategy())
+                                        .sheet()
+                                        .doFill(data);
+                            }
+                        }
+                    } else {
+                        // 没有数据，直接复制模板
+                        Path sourcePath = Paths.get(processedTemplatePath);
+                        Path targetPath = Paths.get(outputPath);
+                        Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+                success = true;
+            } catch (Exception easyExcelException) {
+                log.warn("EasyExcel处理失败，尝试使用POI直接处理：{}", easyExcelException.getMessage());
+            }
+
+            // 如果EasyExcel处理失败，尝试使用POI直接处理
+            if (!success) {
+                log.info("使用POI直接处理Excel文件：{} -> {}", processedTemplatePath, outputPath);
+                
+                // 根据模板文件扩展名选择适当的处理方式
+                if (processedTemplatePath.toLowerCase().endsWith(".xlsx")) {
+                    try (FileInputStream fis = new FileInputStream(processedTemplatePath);
+                         XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
+                        
+                        // 如果有占位符，先处理占位符
+                        if (placeholders != null && !placeholders.isEmpty()) {
+                            processPlaceholdersInWorkbook(workbook, placeholders);
+                        }
+                        
+                        // 如果有数据，填充数据
+                        if (data != null && !data.isEmpty()) {
+                            processDataFillInWorkbook(workbook, data);
+                        }
+                        
+                        // 保存到输出文件
+                        try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                            workbook.write(fos);
+                        }
+                    }
+                } else if (processedTemplatePath.toLowerCase().endsWith(".xls")) {
+                    try (FileInputStream fis = new FileInputStream(processedTemplatePath);
+                         HSSFWorkbook workbook = new HSSFWorkbook(fis)) {
+                        
+                        // 如果有占位符，先处理占位符
+                        if (placeholders != null && !placeholders.isEmpty()) {
+                            processPlaceholdersInWorkbook(workbook, placeholders);
+                        }
+                        
+                        // 如果有数据，填充数据
+                        if (data != null && !data.isEmpty()) {
+                            processDataFillInWorkbook(workbook, data);
+                        }
+                        
+                        // 保存到输出文件
+                        try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                            workbook.write(fos);
+                        }
+                    }
+                } else {
+                    throw new ExcelExportException(ExcelErrorCode.TEMPLATE_FORMAT_ERROR, 
+                        "不支持的模板格式，仅支持.xlsx和.xls文件");
                 }
             }
             
@@ -417,55 +565,7 @@ public class ExcelTemplateUtil {
                 "模板填充失败：" + e.getMessage());
         }
     }
-    
-    /**
-     * 使用POI直接替换模板中的占位符
-     */
-    private void replacePlaceholdersInTemplate(String templatePath, String outputPath, Map<String, Object> data) throws ExcelExportException {
-        try (FileInputStream fis = new FileInputStream(templatePath);
-             org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(fis)) {
-            
-            // 遍历所有Sheet
-            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
-                org.apache.poi.ss.usermodel.Sheet sheet = workbook.getSheetAt(sheetIndex);
-                
-                // 遍历所有行和列
-                for (org.apache.poi.ss.usermodel.Row row : sheet) {
-                    if (row != null) {
-                        for (org.apache.poi.ss.usermodel.Cell cell : row) {
-                            if (cell != null && cell.getCellType() == CellType.STRING) {
-                                String cellValue = cell.getStringCellValue();
-                                if (cellValue != null) {
-                                    // 替换所有数据字段的占位符
-                                    for (Map.Entry<String, Object> entry : data.entrySet()) {
-                                        String fieldName = entry.getKey();
-                                        String placeholder = "${" + fieldName + "}"; // EasyExcel模板格式
-                                        String value = entry.getValue() != null ? entry.getValue().toString() : "";
-                                        
-                                        if (cellValue.contains(placeholder)) {
-                                            cellValue = cellValue.replace(placeholder, value);
-                                            cell.setCellValue(cellValue);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // 保存到输出文件
-            try (FileOutputStream fos = new FileOutputStream(outputPath)) {
-                workbook.write(fos);
-            }
-            
-        } catch (Exception e) {
-            log.error("占位符替换失败：{}", templatePath, e);
-            throw new ExcelExportException(ExcelErrorCode.FILE_WRITE_ERROR, 
-                "占位符替换失败：" + e.getMessage());
-        }
-    }
-    
+        
     /**
      * 预处理模板，将 {fieldName} 格式转换为 ${fieldName} 格式
      */
@@ -473,99 +573,283 @@ public class ExcelTemplateUtil {
         if (data == null || data.isEmpty()) {
             return templatePath; // 如果没有数据，无需预处理
         }
-        
+            
         // 创建临时文件用于存储预处理后的模板
         String tempDir = System.getProperty("java.io.tmpdir");
         String fileName = "preprocessed_" + System.currentTimeMillis() + "_" + new File(templatePath).getName();
         String tempTemplatePath = tempDir + File.separator + fileName;
-        
+            
         try {
             // 复制原始模板到临时文件
             Path sourcePath = Paths.get(templatePath);
             Path targetPath = Paths.get(tempTemplatePath);
             Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
-            
-            // 读取临时模板并替换占位符格式
-            try (FileInputStream fis = new FileInputStream(tempTemplatePath);
-                 org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(fis)) {
                 
-                // 遍历所有Sheet
-                for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
-                    Sheet sheet = workbook.getSheetAt(sheetIndex);
-                    
-                    // 遍历所有行和列
-                    for (Row row : sheet) {
-                        if (row != null) {
-                            for (Cell cell : row) {
-                                if (cell != null && cell.getCellType() == CellType.STRING) {
-                                    String cellValue = cell.getStringCellValue();
-                                    if (cellValue != null) {
-                                        // 将 {fieldName} 格式转换为 ${fieldName} 格式
-                                        String processedValue = convertPlaceholderFormat(cellValue, data);
-                                        if (!cellValue.equals(processedValue)) {
-                                            cell.setCellValue(processedValue);
+            // 检查数据中是否包含 {fieldName} 格式的占位符
+            boolean hasCurlyBracePlaceholders = false;
+            for (Map<String, Object> row : data) {
+                for (Object value : row.values()) {
+                    if (value instanceof String && ((String) value).startsWith("{") && ((String) value).endsWith("}")) {
+                        hasCurlyBracePlaceholders = true;
+                        break;
+                    }
+                }
+                if (hasCurlyBracePlaceholders) {
+                    break;
+                }
+            }
+                
+            if (hasCurlyBracePlaceholders) {
+                // 根据文件扩展名选择适当的处理方式
+                if (tempTemplatePath.toLowerCase().endsWith(".xlsx")) {
+                    try (FileInputStream fis = new FileInputStream(tempTemplatePath);
+                         XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
+                            
+                        // 遍历所有Sheet
+                        for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                            Sheet sheet = workbook.getSheetAt(i);
+                                
+                            // 遍历所有行和列，查找 {fieldName} 格式的占位符并替换为 ${fieldName}
+                            for (Row row : sheet) {
+                                if (row != null) {
+                                    for (Cell cell : row) {
+                                        if (cell != null && cell.getCellType() == CellType.STRING) {
+                                            String cellValue = cell.getStringCellValue();
+                                            if (cellValue != null) {
+                                                // 查找 {fieldName} 格式的占位符并替换为 ${fieldName}
+                                                for (Map<String, Object> dataRow : data) {
+                                                    for (String key : dataRow.keySet()) {
+                                                        String oldPlaceholder = "{" + key + "}";
+                                                        String newPlaceholder = "${" + key + "}";
+                                                        if (cellValue.contains(oldPlaceholder)) {
+                                                            cellValue = cellValue.replace(oldPlaceholder, newPlaceholder);
+                                                            cell.setCellValue(cellValue);
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
+                            
+                        // 保存到临时文件
+                        try (FileOutputStream fos = new FileOutputStream(tempTemplatePath)) {
+                            workbook.write(fos);
+                        }
                     }
+                } else if (tempTemplatePath.toLowerCase().endsWith(".xls")) {
+                    try (FileInputStream fis = new FileInputStream(tempTemplatePath);
+                         HSSFWorkbook workbook = new HSSFWorkbook(fis)) {
+                            
+                        // 遍历所有Sheet
+                        for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                            Sheet sheet = workbook.getSheetAt(i);
+                                
+                            // 遍历所有行和列，查找 {fieldName} 格式的占位符并替换为 ${fieldName}
+                            for (Row row : sheet) {
+                                if (row != null) {
+                                    for (Cell cell : row) {
+                                        if (cell != null && cell.getCellType() == CellType.STRING) {
+                                            String cellValue = cell.getStringCellValue();
+                                            if (cellValue != null) {
+                                                // 查找 {fieldName} 格式的占位符并替换为 ${fieldName}
+                                                for (Map<String, Object> dataRow : data) {
+                                                    for (String key : dataRow.keySet()) {
+                                                        String oldPlaceholder = "{" + key + "}";
+                                                        String newPlaceholder = "${" + key + "}";
+                                                        if (cellValue.contains(oldPlaceholder)) {
+                                                            cellValue = cellValue.replace(oldPlaceholder, newPlaceholder);
+                                                            cell.setCellValue(cellValue);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                            
+                        // 保存到临时文件
+                        try (FileOutputStream fos = new FileOutputStream(tempTemplatePath)) {
+                            workbook.write(fos);
+                        }
+                    }
+                } else {
+                    throw new ExcelExportException(ExcelErrorCode.TEMPLATE_FORMAT_ERROR, 
+                        "不支持的模板格式，仅支持.xlsx和.xls文件");
                 }
-                
-                // 保存处理后的模板
-                try (FileOutputStream fos = new FileOutputStream(tempTemplatePath)) {
-                    workbook.write(fos);
-                }
-                
-                log.debug("模板预处理完成：{} -> {}", templatePath, tempTemplatePath);
-                return tempTemplatePath;
-                
             }
+                
+            return tempTemplatePath;
         } catch (Exception e) {
             log.error("模板预处理失败：{}", templatePath, e);
             throw new ExcelExportException(ExcelErrorCode.TEMPLATE_PROCESS_ERROR, 
                 "模板预处理失败：" + e.getMessage());
         }
     }
+        
+    /**
+     * 使用POI直接替换模板中的占位符
+     */
+    private void replacePlaceholdersInTemplate(String templatePath, String outputPath, Map<String, Object> placeholders) throws ExcelExportException {
+        try {
+            // 根据文件扩展名选择适当的处理方式
+            if (templatePath.toLowerCase().endsWith(".xlsx")) {
+                try (FileInputStream fis = new FileInputStream(templatePath);
+                     XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
+                        
+                    // 处理占位符
+                    processPlaceholdersInWorkbook(workbook, placeholders);
+                        
+                    // 保存到输出文件
+                    try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                        workbook.write(fos);
+                    }
+                }
+            } else if (templatePath.toLowerCase().endsWith(".xls")) {
+                try (FileInputStream fis = new FileInputStream(templatePath);
+                     HSSFWorkbook workbook = new HSSFWorkbook(fis)) {
+                        
+                    // 处理占位符
+                    processPlaceholdersInWorkbook(workbook, placeholders);
+                        
+                    // 保存到输出文件
+                    try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+                        workbook.write(fos);
+                    }
+                }
+            } else {
+                throw new ExcelExportException(ExcelErrorCode.TEMPLATE_FORMAT_ERROR, 
+                    "不支持的模板格式，仅支持.xlsx和.xls文件");
+            }
+        } catch (Exception e) {
+            log.error("占位符替换失败：{} -> {}", templatePath, outputPath, e);
+            throw new ExcelExportException(ExcelErrorCode.FILE_WRITE_ERROR, 
+                "占位符替换失败：" + e.getMessage());
+        }
+    }
+        
+    /**
+     * 在工作簿中处理占位符
+     */
+    private void processPlaceholdersInWorkbook(Workbook workbook, Map<String, Object> placeholders) {
+        // 遍历所有Sheet
+        for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+            Sheet sheet = workbook.getSheetAt(i);
+            
+            // 遍历所有行和列
+            for (Row row : sheet) {
+                if (row != null) {
+                    for (Cell cell : row) {
+                        if (cell != null && cell.getCellType() == CellType.STRING) {
+                            String cellValue = cell.getStringCellValue();
+                            if (cellValue != null) {
+                                // 替换所有占位符
+                                for (Map.Entry<String, Object> entry : placeholders.entrySet()) {
+                                    String placeholder = "${" + entry.getKey() + "}";
+                                    String value = entry.getValue() != null ? entry.getValue().toString() : "";
+                                    if (cellValue.contains(placeholder)) {
+                                        cellValue = cellValue.replace(placeholder, value);
+                                        cell.setCellValue(cellValue);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     
     /**
-     * 转换占位符格式，将 {fieldName} 转换为 ${fieldName}
+     * 在工作簿中填充数据
      */
-    private String convertPlaceholderFormat(String cellValue, List<Map<String, Object>> data) {
-        if (data == null || data.isEmpty()) {
-            return cellValue;
-        }
+    private void processDataFillInWorkbook(Workbook workbook, List<Map<String, Object>> data) {
+        // 这里实现数据填充逻辑，基于第一个Sheet进行数据填充
+        Sheet sheet = workbook.getSheetAt(0);
         
-        String result = cellValue;
+        // 找到数据起始行（通常在模板中是空行或特定标记行）
+        int startRow = findDataStartRow(sheet);
         
-        // 从数据中提取所有可能的字段名
-        Set<String> fieldNames = new HashSet<>();
-        for (Map<String, Object> dataMap : data) {
-            fieldNames.addAll(dataMap.keySet());
-        }
-        
-        // 将 {fieldName} 格式转换为 ${fieldName} 格式
-        for (String fieldName : fieldNames) {
-            String oldPlaceholder = "{" + fieldName + "}";
-            String newPlaceholder = "${" + fieldName + "}";
+        // 填充数据
+        for (int i = 0; i < data.size(); i++) {
+            Map<String, Object> rowData = data.get(i);
+            Row row = sheet.getRow(startRow + i);
+            if (row == null) {
+                row = sheet.createRow(startRow + i);
+            }
             
-            // 替换所有匹配的占位符
-            if (result.contains(oldPlaceholder)) {
-                result = result.replace(oldPlaceholder, newPlaceholder);
+            int cellIndex = 0;
+            for (Map.Entry<String, Object> entry : rowData.entrySet()) {
+                Cell cell = row.getCell(cellIndex);
+                if (cell == null) {
+                    cell = row.createCell(cellIndex);
+                }
+                
+                Object value = entry.getValue();
+                if (value instanceof String) {
+                    cell.setCellValue((String) value);
+                } else if (value instanceof Number) {
+                    if (value instanceof Integer || value instanceof Long) {
+                        cell.setCellValue(((Number) value).longValue());
+                    } else {
+                        cell.setCellValue(((Number) value).doubleValue());
+                    }
+                } else if (value instanceof Boolean) {
+                    cell.setCellValue((Boolean) value);
+                } else {
+                    cell.setCellValue(value != null ? value.toString() : "");
+                }
+                cellIndex++;
+            }
+        }
+    }
+    
+    /**
+     * 查找数据起始行
+     */
+    private int findDataStartRow(Sheet sheet) {
+        // 简单实现：查找第一个空行或特定标记行，这里默认从第2行开始
+        return 1; // 从第2行开始（0-based）
+    }
+    
+    /**
+     * 在模板目录中查找已存在的同名文件（不同扩展名）
+     */
+    private String findExistingTemplateFile(String templateName) {
+        String defaultDir = excelConfig.getTemplate().getDefaultDir();
+        File dir = new File(defaultDir);
+        
+        if (dir.exists() && dir.isDirectory()) {
+            String fileNameWithoutExt;
+            if (templateName.lastIndexOf('.') != -1) {
+                fileNameWithoutExt = templateName.substring(0, templateName.lastIndexOf('.'));
+            } else {
+                fileNameWithoutExt = templateName;
+            }
+            
+            log.debug("在模板目录中查找文件：{}，基础名称：{}", templateName, fileNameWithoutExt);
+            
+            // 查找目录中所有匹配的文件
+            File[] files = dir.listFiles((d, name) -> {
+                String lowerName = name.toLowerCase();
+                String lowerBaseName = fileNameWithoutExt.toLowerCase();
+                boolean startsWithBaseName = lowerName.startsWith(lowerBaseName + ".");
+                boolean hasValidExtension = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
+                log.debug("检查文件：{}，是否匹配基础名称：{}，是否有有效扩展名：{}", name, startsWithBaseName, hasValidExtension);
+                return startsWithBaseName && hasValidExtension;
+            });
+            
+            if (files != null && files.length > 0) {
+                log.debug("找到匹配的文件：{}", files[0].getName());
+                // 如果找到匹配的文件，返回完整路径
+                return new File(defaultDir, files[0].getName()).getAbsolutePath();
             }
         }
         
-        return result;
-    }
-
-    /**
-     * 填充模板（兼容旧版本，仅支持数据填充）
-     *
-     * @param templatePath 模板路径
-     * @param outputPath 输出路径
-     * @param data 数据列表
-     */
-    public void fillTemplate(String templatePath, String outputPath, List<Map<String, Object>> data) throws ExcelExportException {
-        fillTemplate(templatePath, outputPath, data, null);
+        return null; // 没有找到匹配的文件
     }
 }

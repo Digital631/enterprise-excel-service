@@ -79,10 +79,17 @@ public class ExcelTemplateUtil {
 
         // 检查文件是否存在
         if (!file.exists()) {
-            throw new ExcelExportException(
-                    ExcelErrorCode.TEMPLATE_NOT_FOUND,
-                    "模板文件不存在：" + templatePath
-            );
+            // 如果文件不存在，尝试其他可能的扩展名
+            String actualPath = findTemplateWithAlternativeExtension(templatePath);
+            if (actualPath != null) {
+                file = new File(actualPath);
+                templatePath = actualPath;
+            } else {
+                throw new ExcelExportException(
+                        ExcelErrorCode.TEMPLATE_NOT_FOUND,
+                        "模板文件不存在：" + templatePath
+                );
+            }
         }
 
         // 检查是否为文件
@@ -95,8 +102,9 @@ public class ExcelTemplateUtil {
 
         // 检查文件扩展名
         List<String> allowedExtensions = excelConfig.getTemplate().getAllowedExtensions();
+        String finalTemplatePath = templatePath;
         boolean validExtension = allowedExtensions.stream()
-                .anyMatch(ext -> templatePath.toLowerCase().endsWith(ext));
+                .anyMatch(ext -> finalTemplatePath.toLowerCase().endsWith(ext));
 
         if (!validExtension) {
             throw new ExcelExportException(ExcelErrorCode.TEMPLATE_FORMAT_ERROR);
@@ -111,6 +119,35 @@ public class ExcelTemplateUtil {
         }
 
         return templatePath;
+    }
+
+    /**
+     * 查找具有不同扩展名的模板文件
+     */
+    private String findTemplateWithAlternativeExtension(String templatePath) {
+        File originalFile = new File(templatePath);
+        
+        // 检查是否有扩展名
+        int lastDotIndex = templatePath.lastIndexOf('.');
+        if (lastDotIndex == -1) {
+            // 没有扩展名，直接返回null，因为这种情况应该由tryAddExtension处理
+            return null;
+        }
+        
+        String basePath = templatePath.substring(0, lastDotIndex);
+        List<String> allowedExtensions = excelConfig.getTemplate().getAllowedExtensions();
+        
+        // 尝试所有允许的扩展名
+        for (String ext : allowedExtensions) {
+            String alternativePath = basePath + ext;
+            File alternativeFile = new File(alternativePath);
+            if (alternativeFile.exists() && alternativeFile.isFile()) {
+                log.debug("找到模板文件：{} -> {}", templatePath, alternativePath);
+                return alternativePath;
+            }
+        }
+        
+        return null; // 没有找到匹配的文件
     }
 
     /**

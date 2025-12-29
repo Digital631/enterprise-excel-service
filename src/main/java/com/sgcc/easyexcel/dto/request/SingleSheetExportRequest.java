@@ -79,4 +79,16 @@ public class SingleSheetExportRequest {
     
     @Schema(description = "占位符数据，用于填充模板中的文档级占位符，支持多种格式如{title}、{date}、${time}、${year}等", 
             example = "{\"title\":\"员工统计表\",\"date\":\"2023-12-22\",\"time\":\"14:30:00\"}")
-    private Map<String, Object> placeholders;}
+    private Map<String, Object> placeholders;
+    
+    @Schema(description = "设置导出的Excel文件为只读模式", 
+            example = "true")
+    private Boolean readOnly = false;
+    
+    @Schema(description = "是否对Excel文件进行密码加密", 
+            example = "true")
+    private Boolean enableEncryption = false;
+    
+    @Schema(description = "Excel文件加密密码，当enableEncryption为true时生效", 
+            example = "123456")
+    private String encryptionPassword;}

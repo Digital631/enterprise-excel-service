@@ -83,16 +83,22 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
 
 **请求参数**：
 
-| 参数名 | 类型 | 必填 | 默认值 | 描述 |
-|--------|------|------|--------|------|
-| templatePath | String | 是 | - | 模板路径，支持完整路径或模板名称 |
-| data | List<Map> | 是 | - | 导出数据列表 |
-| startRow | Integer | 否 | 2 | 数据起始行 |
-| fieldMapping | Map | 否 | - | 字段映射关系 |
-| exportFileName | String | 否 | 自动生成 | 导出文件名 |
-| exportDir | String | 否 | 配置目录 | 导出目录 |
-| enableBigDataMode | Boolean | 否 | false | 是否启用大数据模式 |
-| batchSize | Integer | 否 | 5000 | 分批大小 |
+| 参数名 | 类型 | 必填 | 默认值 | 描述                                                          |
+|--------|------|------|--------|-------------------------------------------------------------|
+| templatePath | String | 是 | - | 模板路径，支持完整路径或模板名称                                            |
+| data | List<Map> | 是 | - | 导出数据列表                                                      |
+| startRow | Integer | 否 | 2 | 数据起始行                                                       |
+| fieldMapping | Map | 否 | - | 字段映射关系                                                      |
+| exportFileName | String | 否 | 自动生成 | 导出文件名                                                       |
+| exportDir | String | 否 | 配置目录 | 导出目录                                                        |
+| enableBigDataMode | Boolean | 否 | false | 是否启用大数据模式                                                   |
+| batchSize | Integer | 否 | 5000 | 分批大小                                                        |
+| maxRowsPerSheet | Integer | 否 | 50000 | 单个Sheet最大行数，超过此值将自动拆分到多个Sheet，仅在启用大数据模式时生效                  |
+| sheetName | String | 否 | - | Sheet名称                                                     |
+| placeholders | Map | 否 | - | 占位符数据，用于填充模板中的文档级占位符，支持多种格式如{title}、{date}、${time}、${year}等 |
+| readOnly | Boolean | 否 | false | 设置导出的Excel文件为只读模式                                           |
+| enableEncryption | Boolean | 否 | false | 是否对Excel文件进行密码加密(如果readOnly已经为true了,则无法设置密码,因为会导致写入文件失败)    |
+| encryptionPassword | String | 否 | - | Excel文件加密密码，当enableEncryption为true时生效                       |
 
 **请求示例**：
 
@@ -123,7 +129,17 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
   "exportFileName": "2023年员工统计.xlsx",
   "exportDir": "/home/custom-exports/",
   "enableBigDataMode": false,
-  "batchSize": 5000
+  "batchSize": 5000,
+  "maxRowsPerSheet": 50000,
+  "sheetName": "员工统计",
+  "placeholders": {
+    "reportTitle": "2023年度员工统计",
+    "reportDate": "2023-12-25",
+    "time": "14:30:00"
+  },
+  "readOnly": true,
+  "enableEncryption": true,
+  "encryptionPassword": "123456"
 }
 ```
 
@@ -144,6 +160,22 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
   }
 }
 ```
+
+**响应字段说明**：
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| success | Boolean | 是否成功 |
+| code | Integer | 业务状态码 |
+| message | String | 响应消息 |
+| data | Object | 响应数据（成功时为ExcelFileInfo对象，失败时为""）|
+| data.filePath | String | 导出文件完整路径 |
+| data.fileName | String | 导出文件名 |
+| data.fileSize | Long | 文件大小（字节） |
+| data.exportTime | String | 导出时间 |
+| data.exportDuration | Long | 导出耗时（毫秒） |
+| data.exportDurationSeconds | BigDecimal | 导出耗时（秒，保留2位小数） |
+| timestamp | Long | 响应时间戳（毫秒） |
 
 ### 单Sheet异步导出
 
@@ -207,11 +239,10 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
   "success": true,
   "code": 200,
   "message": "任务已停止",
-  "data": null,
+  "data": "",
   "timestamp": 1703232645000
 }
 ```
-
 ### 多Sheet导出
 
 **接口地址**：`POST /excel-service/api/excel/export/multi`
@@ -232,6 +263,7 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
 | data | List<Map> | 是 | - | 该Sheet的数据 |
 | startRow | Integer | 否 | 2 | 数据起始行 |
 | fieldMapping | Map | 否 | - | 字段映射关系 |
+| batchSize | Integer | 否 | 5000 | 分批大小，大数据模式下生效 |
 
 **请求示例**：
 
@@ -281,6 +313,8 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
 
 当数据量超过1万条时，建议启用大数据模式：
 
+**基础大数据模式**：
+
 ```json
 {
   "templatePath": "订单明细表",
@@ -290,6 +324,18 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
   "exportFileName": "2023年订单明细.xlsx"
 }
 
+**自动多Sheet拆分**：当数据量超过单个Sheet的最大行数限制时，系统会自动将数据拆分到多个Sheet：
+
+```json
+{
+  "templatePath": "订单明细表",
+  "data": [...200000条数据...],
+  "enableBigDataMode": true,
+  "maxRowsPerSheet": 50000,  // 单个Sheet最大5万行，超过将自动拆分到多个Sheet
+  "batchSize": 5000,
+  "exportFileName": "2023年订单明细.xlsx"
+}
+```
 ### 2. 字段映射
 
 当模板表头与数据字段名不一致时，使用字段映射：
@@ -313,9 +359,30 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
 
 当数据只有一行且模板中包含相应占位符时，系统会自动识别并填充这些占位符。
 
-### 4. 文档级占位符填充
+### 4. 文件安全设置
 
-当模板中包含文档级占位符（如 ${time}、${year} 等）时，可以使用以下方式填充：
+支持对导出的Excel文件进行安全设置：
+
+1. **只读模式**：设置 `readOnly` 为 `true`，导出的文件将为只读模式
+2. **密码加密**：设置 `enableEncryption` 为 `true`，并提供 `encryptionPassword`，导出的文件将被密码保护
+
+**请求示例**：
+
+```json
+{
+  "templatePath": "敏感数据报表",
+  "data": [...],
+  "readOnly": true,
+  "enableEncryption": true,
+  "encryptionPassword": "123456"
+}
+```
+
+### 5. 文档级占位符填充
+
+当模板中包含文档级占位符（如 ${time}、${year}、{title} 等）时，可以使用以下方式填充：
+
+**方式一：直接在数据中包含占位符**
 
 ```json
 {
@@ -338,7 +405,7 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
 }
 ```
 
-或者使用 placeholders 字段明确指定文档级占位符：
+**方式二：使用 placeholders 字段明确指定文档级占位符**
 
 ```json
 {
@@ -349,6 +416,26 @@ try (FileOutputStream outputStream = new FileOutputStream(templatePath)) {
     "reportDate": "2023-12-25",
     "time": "14:30:00",
     "year": 2025
+  }
+}
+```
+
+**方式三：同时使用数据和占位符**
+
+```json
+{
+  "templatePath": "员工统计表",
+  "data": [
+    {
+      "userName": "张三",
+      "age": 25,
+      "department": "研发部"
+    }
+  ],
+  "placeholders": {
+    "reportTitle": "2023年度员工统计",
+    "reportDate": "2023-12-25",
+    "time": "14:30:00"
   }
 }
 ```

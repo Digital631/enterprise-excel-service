@@ -31,7 +31,7 @@ public class ExcelExportResponse {
             example = "true")
     private Boolean success;
 
-    @Schema(description = "响应数据，成功时返回具体数据，失败时为null")
+    @Schema(description = "响应数据，成功时返回具体数据，失败时返回空字符串")
     private Object data;
 
     @Schema(description = "响应时间戳（毫秒）", 
@@ -46,7 +46,7 @@ public class ExcelExportResponse {
                 .code(200)
                 .message("导出成功")
                 .success(true)
-                .data(data)
+                .data(data != null ? data : "")
                 .timestamp(System.currentTimeMillis())
                 .build();
     }
@@ -59,7 +59,7 @@ public class ExcelExportResponse {
                 .code(200)
                 .message("操作成功")
                 .success(true)
-                .data(data)
+                .data(data != null ? data : "")
                 .timestamp(System.currentTimeMillis())
                 .build();
     }
@@ -69,10 +69,10 @@ public class ExcelExportResponse {
      */
     public static ExcelExportResponse error(Integer code, String message) {
         return ExcelExportResponse.builder()
-                .code(code)
-                .message(message)
+                .code(code != null ? code : 500)
+                .message(message != null ? message : "")
                 .success(false)
-                .data(null)
+                .data("")
                 .timestamp(System.currentTimeMillis())
                 .build();
     }

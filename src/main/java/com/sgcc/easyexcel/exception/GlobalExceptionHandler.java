@@ -102,7 +102,7 @@ public class GlobalExceptionHandler {
         // 忽略静态资源异常（Swagger UI）
         if (e instanceof org.springframework.web.servlet.resource.NoResourceFoundException) {
             log.debug("静态资源未找到（忽略）：{}", e.getMessage());
-            return null;
+            return ExcelExportResponse.error(404, "资源未找到");
         }
         
         log.error("系统异常", e);

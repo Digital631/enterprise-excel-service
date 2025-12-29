@@ -545,13 +545,37 @@ public class ExcelExportServiceImpl implements ExcelExportService {
                 }
                 
                 Cell cell = row.getCell(columnIndex);
+                CellStyle originalStyle = null;
+                
+                // 保存原始样式（如果存在）
+                if (cell != null) {
+                    originalStyle = cell.getCellStyle();
+                }
+                
                 if (cell == null) {
                     cell = row.createCell(columnIndex);
+                }
+                
+                // 如果当前行没有样式，尝试从模板数据行获取样式
+                if (originalStyle == null) {
+                    // 尝试从模板数据行获取样式（通常在第startRow - 1行）
+                    Row templateRow = sheet.getRow(startRow - 1); // 模板数据行
+                    if (templateRow != null) {
+                        Cell templateCell = templateRow.getCell(columnIndex);
+                        if (templateCell != null) {
+                            originalStyle = templateCell.getCellStyle();
+                        }
+                    }
                 }
                 
                 // 设置单元格值
                 Object value = rowData.get(dataField);
                 setCellValue(cell, value);
+                
+                // 如果有原始样式，应用到新单元格
+                if (originalStyle != null) {
+                    cell.setCellStyle(originalStyle);
+                }
             }
         }
     }

@@ -694,7 +694,7 @@ public class ExcelTemplateUtil {
     /**
      * 使用POI直接替换模板中的占位符
      */
-    private void replacePlaceholdersInTemplate(String templatePath, String outputPath, Map<String, Object> placeholders) throws ExcelExportException {
+    public void replacePlaceholdersInTemplate(String templatePath, String outputPath, Map<String, Object> placeholders) throws ExcelExportException {
         try {
             // 根据文件扩展名选择适当的处理方式
             if (templatePath.toLowerCase().endsWith(".xlsx")) {
@@ -749,10 +749,28 @@ public class ExcelTemplateUtil {
                             if (cellValue != null) {
                                 // 替换所有占位符
                                 for (Map.Entry<String, Object> entry : placeholders.entrySet()) {
-                                    String placeholder = "${" + entry.getKey() + "}";
+                                    String key = entry.getKey();
                                     String value = entry.getValue() != null ? entry.getValue().toString() : "";
-                                    if (cellValue.contains(placeholder)) {
-                                        cellValue = cellValue.replace(placeholder, value);
+                                                                        
+                                    // 预处理单元格内容，去除换行和空格进行匹配，但保留原内容的结构进行替换
+                                    String cellValueClean = cellValue.replaceAll("[\\s\\n\\r]", "");
+                                                                        
+                                    // 检查是否包含占位符
+                                    String placeholderDollar = "${" + key + "}";
+                                    String placeholderCurly = "{" + key + "}";
+                                    String placeholderDot = "{." + key + "}";
+                                                                        
+                                    if (cellValueClean.contains(placeholderDollar)) {
+                                        // 实际替换时需要考虑原内容中可能有换行
+                                        // 比较简单的办法是遍历原内容中的占位符模式（带可能换行的）
+                                        // 这里我们做一个简单的模糊匹配替换
+                                        cellValue = replaceFuzzy(cellValue, placeholderDollar, value);
+                                        cell.setCellValue(cellValue);
+                                    } else if (cellValueClean.contains(placeholderCurly)) {
+                                        cellValue = replaceFuzzy(cellValue, placeholderCurly, value);
+                                        cell.setCellValue(cellValue);
+                                    } else if (cellValueClean.contains(placeholderDot)) {
+                                        cellValue = replaceFuzzy(cellValue, placeholderDot, value);
                                         cell.setCellValue(cellValue);
                                     }
                                 }
@@ -762,6 +780,24 @@ public class ExcelTemplateUtil {
                 }
             }
         }
+    }
+    
+    /**
+     * 模糊匹配并替换占位符（处理换行和空格）
+     */
+    private String replaceFuzzy(String original, String placeholder, String value) {
+        // 构建正则表达式，允许占位符内部有换行或空格
+        // 例如 ${name} 变为 \$\{[\s\n\r]*n[\s\n\r]*a[\s\n\r]*m[\s\n\r]*e[\s\n\r]*\}
+        StringBuilder regex = new StringBuilder();
+        for (char c : placeholder.toCharArray()) {
+            if (c == '$' || c == '{' || c == '}' || c == '.' || c == '(' || c == ')') {
+                regex.append("\\").append(c);
+            } else {
+                regex.append(c);
+            }
+            regex.append("[\\s\\n\\r]*");
+        }
+        return original.replaceAll(regex.toString(), value);
     }
     
     /**

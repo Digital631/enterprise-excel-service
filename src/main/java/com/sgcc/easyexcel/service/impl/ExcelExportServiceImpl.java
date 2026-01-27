@@ -281,16 +281,38 @@ public class ExcelExportServiceImpl implements ExcelExportService {
                 updateSheetName(outputFile, request.getSheetName());
             }
         } else if (request.getData() != null && !request.getData().isEmpty()) {
-            // 检查数据中是否包含文档级占位符（只有一行数据时）
-            if (request.getData().size() == 1 && hasDocumentLevelPlaceholders(templateFile, request.getData().get(0))) {
-                // 数据中包含文档级占位符，合并到placeholders中
-                Map<String, Object> placeholders = new HashMap<>(request.getPlaceholders() != null ? request.getPlaceholders() : new HashMap<>());
-                placeholders.putAll(request.getData().get(0));
+            // 检查数据中是否包含文档级占位符
+            Map<String, Object> docPlaceholders = new HashMap<>(request.getPlaceholders() != null ? request.getPlaceholders() : new HashMap<>());
+            
+            // 只有当数据只有一行时，才尝试将其作为文档级占位符处理
+            // 如果是多行数据，将其视为文档级占位符会破坏后续的多行填充逻辑（因为占位符会被提前替换，导致无法定位列）
+            if (request.getData() != null && request.getData().size() == 1 && 
+                hasDocumentLevelPlaceholders(templateFile, request.getData().get(0))) {
+                docPlaceholders.putAll(request.getData().get(0));
+            }
+            
+            boolean hasDocPlaceholders = !docPlaceholders.isEmpty();
+            
+            if (hasDocPlaceholders) {
+                // 先处理文档级占位符，创建临时文件避免影响原始模板
+                String tempOutputPath = outputFile.getAbsolutePath() + ".tmp";
+                excelTemplateUtil.replacePlaceholdersInTemplate(templateFile.getAbsolutePath(), 
+                    tempOutputPath, 
+                    docPlaceholders);
                 
-                excelTemplateUtil.fillTemplate(templateFile.getAbsolutePath(), 
-                    outputFile.getAbsolutePath(), 
-                    null, 
-                    placeholders);
+                // 然后将处理后的文件重命名为最终输出文件
+                File tempFile = new File(tempOutputPath);
+                if (tempFile.exists()) {
+                    // 移动临时文件到最终输出位置
+                    try (FileInputStream fis = new FileInputStream(tempFile);
+                         FileOutputStream fos = new FileOutputStream(outputFile)) {
+                        fis.transferTo(fos);
+                    }
+                    tempFile.delete(); // 清理临时文件
+                }
+                
+                // 填充多行数据（此时文档级占位符已被处理）
+                fillDataToExcelFile(outputFile, request);
                 
                 // 如果需要更新Sheet名称，单独处理
                 if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
@@ -496,86 +518,110 @@ public class ExcelExportServiceImpl implements ExcelExportService {
             return;
         }
 
-        // 使用提供的字段映射或从模板第一行获取表头
+        // 使用提供的字段映射或从模板中获取表头
         Map<String, Integer> headerColumnMap = new HashMap<>();
+        int actualStartRow = startRow - 1; // 默认使用传入的起始行
+
         if (fieldMapping != null && !fieldMapping.isEmpty()) {
             // 使用提供的字段映射
             for (Map.Entry<String, String> entry : fieldMapping.entrySet()) {
                 String templateField = entry.getKey(); // 模板中的字段名，如"姓名"
-                int columnIndex = findColumnIndex(sheet, templateField);
+                int columnIndex = findColumnIndex(sheet, templateField, startRow);
                 if (columnIndex != -1) {
                     headerColumnMap.put(templateField, columnIndex);
                 }
             }
         } else {
-            // 如果没有提供字段映射，尝试从模板第一行获取表头
-            Row headerRow = sheet.getRow(0); // 假设标题行在第0行
-            if (headerRow != null) {
-                for (int i = 0; i < headerRow.getLastCellNum(); i++) {
-                    Cell cell = headerRow.getCell(i);
-                    if (cell != null) {
-                        String headerName = getCellValueAsString(cell);
-                        if (headerName != null && !headerName.trim().isEmpty()) {
-                            headerColumnMap.put(headerName, i);
+            // 如果没有提供字段映射，尝试查找包含占位符的行作为表头
+            // 1. 先检查指定的起始行
+            Row dataRow = sheet.getRow(actualStartRow);
+            if (dataRow != null) {
+                scanRowForMapping(dataRow, headerColumnMap);
+            }
+            
+            // 2. 如果没找到，向下扫描 20 行（防止起始行设置错误）
+            if (headerColumnMap.isEmpty()) {
+                for (int r = actualStartRow + 1; r < actualStartRow + 20 && r < sheet.getLastRowNum() + 1; r++) {
+                    Row nextRow = sheet.getRow(r);
+                    if (nextRow != null) {
+                        scanRowForMapping(nextRow, headerColumnMap);
+                        if (!headerColumnMap.isEmpty()) {
+                            actualStartRow = r;
+                            log.info("自动检测到数据起始行: {}", actualStartRow + 1);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // 3. 如果还没找到，向上扫描到第0行
+            if (headerColumnMap.isEmpty()) {
+                for (int r = actualStartRow - 1; r >= 0; r--) {
+                    Row prevRow = sheet.getRow(r);
+                    if (prevRow != null) {
+                        scanRowForMapping(prevRow, headerColumnMap);
+                        if (!headerColumnMap.isEmpty()) {
+                            actualStartRow = r;
+                            log.info("自动检测到数据起始行: {}", actualStartRow + 1);
+                            break;
                         }
                     }
                 }
             }
         }
 
-        // 按照原有逻辑，在指定行开始填充数据
-        // 注意：startRow是从1开始的，但在POI中行索引从0开始，所以实际索引为startRow - 1
+        // 如果没有找到列映射，无法填充数据
+        if (headerColumnMap.isEmpty()) {
+            log.warn("未能找到列标题映射，无法填充数据。请检查模板占位符格式或指定正确的startRow。");
+            return;
+        }
+        
+        // 按照计算出的起始行开始填充数据
         for (int i = 0; i < data.size(); i++) {
-            Row row = sheet.getRow(startRow - 1 + i); // 转换为0基索引
-            if (row == null) {
-                row = sheet.createRow(startRow - 1 + i); // 转换为0基索引
+            int currentRowNum = actualStartRow + i;
+            Row row = sheet.getRow(currentRowNum);
+            
+            // 只有当 i > 0 时才创建新行，i=0 时应复用占位符行以保持样式和公式
+            if (row == null || i > 0) {
+                // 如果是新行，尝试复制上一行的样式
+                Row templateRow = sheet.getRow(actualStartRow);
+                if (row == null) {
+                    row = sheet.createRow(currentRowNum);
+                }
+                if (templateRow != null && row != templateRow) {
+                    row.setHeight(templateRow.getHeight());
+                }
             }
             
             Map<String, Object> rowData = data.get(i);
             
             // 遍历表头列映射，填充数据
             for (Map.Entry<String, Integer> entry : headerColumnMap.entrySet()) {
-                String templateField = entry.getKey(); // 模板中的字段名，如"姓名"
-                int columnIndex = entry.getValue();    // 对应的列索引
+                String templateField = entry.getKey();
+                int columnIndex = entry.getValue();
                 
-                // 根据字段映射找到数据字段名
-                String dataField = templateField; // 默认使用模板字段名作为数据字段名
+                String dataField = templateField;
                 if (fieldMapping != null && fieldMapping.containsKey(templateField)) {
                     dataField = fieldMapping.get(templateField);
                 }
                 
                 Cell cell = row.getCell(columnIndex);
-                CellStyle originalStyle = null;
-                
-                // 保存原始样式（如果存在）
-                if (cell != null) {
-                    originalStyle = cell.getCellStyle();
-                }
-                
                 if (cell == null) {
                     cell = row.createCell(columnIndex);
                 }
                 
-                // 如果当前行没有样式，尝试从模板数据行获取样式
-                if (originalStyle == null) {
-                    // 尝试从模板数据行获取样式（通常在第startRow - 1行）
-                    Row templateRow = sheet.getRow(startRow - 1); // 模板数据行
-                    if (templateRow != null) {
-                        Cell templateCell = templateRow.getCell(columnIndex);
-                        if (templateCell != null) {
-                            originalStyle = templateCell.getCellStyle();
-                        }
+                // 设置单元格样式（从模板行复制）
+                Row templateRow = sheet.getRow(actualStartRow);
+                if (templateRow != null) {
+                    Cell templateCell = templateRow.getCell(columnIndex);
+                    if (templateCell != null) {
+                        cell.setCellStyle(templateCell.getCellStyle());
                     }
                 }
                 
                 // 设置单元格值
                 Object value = rowData.get(dataField);
                 setCellValue(cell, value);
-                
-                // 如果有原始样式，应用到新单元格
-                if (originalStyle != null) {
-                    cell.setCellStyle(originalStyle);
-                }
             }
         }
     }
@@ -583,47 +629,94 @@ public class ExcelExportServiceImpl implements ExcelExportService {
     /**
      * 查找列索引
      */
-    private int findColumnIndex(Sheet sheet, String fieldName) {
-        Row headerRow = sheet.getRow(0); // 假设标题行在第0行
-        if (headerRow == null) {
-            return -1;
+    private int findColumnIndex(Sheet sheet, String fieldName, int startRow) {
+        // 1. 首先检查数据起始行（通常是占位符所在行）
+        int actualStartRow = startRow - 1;
+        Row dataRow = sheet.getRow(actualStartRow);
+        if (dataRow != null) {
+            int index = findInRow(dataRow, fieldName);
+            if (index != -1) return index;
         }
-        
-        for (int i = 0; i < headerRow.getLastCellNum(); i++) {
-            Cell cell = headerRow.getCell(i);
-            if (cell != null) {
-                String cellValue = getCellValueAsString(cell);
-                if (fieldName.equals(cellValue)) {
-                    return i;
-                }
-                // 也检查是否包含占位符格式 {fieldName}
-                if (cellValue != null && cellValue.startsWith("{") && cellValue.endsWith("}")) {
-                    String placeholder = cellValue.substring(1, cellValue.length() - 1);
-                    if (fieldName.equals(placeholder)) {
-                        return i;
-                    }
-                }
-            }
+
+        // 2. 检查第0行（传统表头行）
+        Row row0 = sheet.getRow(0);
+        if (row0 != null) {
+            int index = findInRow(row0, fieldName);
+            if (index != -1) return index;
         }
-        
-        // 额外检查：如果在第1行（索引1）有占位符，也尝试查找
-        Row placeholderRow = sheet.getRow(1);
-        if (placeholderRow != null) {
-            for (int i = 0; i < placeholderRow.getLastCellNum(); i++) {
-                Cell cell = placeholderRow.getCell(i);
-                if (cell != null) {
-                    String cellValue = getCellValueAsString(cell);
-                    if (cellValue != null && cellValue.startsWith("{") && cellValue.endsWith("}")) {
-                        String placeholder = cellValue.substring(1, cellValue.length() - 1);
-                        if (fieldName.equals(placeholder)) {
-                            return i;
-                        }
-                    }
-                }
-            }
+
+        // 3. 检查第1行
+        Row row1 = sheet.getRow(1);
+        if (row1 != null) {
+            int index = findInRow(row1, fieldName);
+            if (index != -1) return index;
         }
         
         return -1;
+    }
+
+    /**
+     * 在行中查找字段对应的列索引
+     */
+    private int findInRow(Row row, String fieldName) {
+        for (int i = 0; i < row.getLastCellNum(); i++) {
+            Cell cell = row.getCell(i);
+            if (cell != null) {
+                String cellValue = getCellValueAsString(cell);
+                if (cellValue == null) continue;
+                
+                // 清洗单元格内容：去除换行、空格等干扰字符
+                String cleanValue = cellValue.replaceAll("[\\s\\n\\r]", "");
+                
+                if (fieldName.equals(cleanValue)) {
+                    return i;
+                }
+                
+                // 处理占位符格式: {fieldName}, {.fieldName}, ${fieldName}
+                String placeholder = null;
+                if (cleanValue.startsWith("{") && cleanValue.endsWith("}")) {
+                    placeholder = cleanValue.substring(1, cleanValue.length() - 1);
+                    if (placeholder.startsWith(".")) {
+                        placeholder = placeholder.substring(1);
+                    }
+                } else if (cleanValue.startsWith("${") && cleanValue.endsWith("}")) {
+                    placeholder = cleanValue.substring(2, cleanValue.length() - 1);
+                }
+                
+                if (placeholder != null && fieldName.equals(placeholder)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * 扫描行并填充列映射
+     */
+    private void scanRowForMapping(Row row, Map<String, Integer> mapping) {
+        for (int i = 0; i < row.getLastCellNum(); i++) {
+            Cell cell = row.getCell(i);
+            if (cell != null) {
+                String cellValue = getCellValueAsString(cell);
+                if (cellValue != null && !cellValue.trim().isEmpty()) {
+                    // 清洗内容：去除换行、空格
+                    String fieldName = cellValue.replaceAll("[\\s\\n\\r]", "");
+                    
+                    // 提取占位符中的字段名: {fieldName}, {.fieldName}, ${fieldName}
+                    if (fieldName.startsWith("{") && fieldName.endsWith("}")) {
+                        fieldName = fieldName.substring(1, fieldName.length() - 1);
+                        if (fieldName.startsWith(".")) {
+                            fieldName = fieldName.substring(1);
+                        }
+                    } else if (fieldName.startsWith("${") && fieldName.endsWith("}")) {
+                        fieldName = fieldName.substring(2, fieldName.length() - 1);
+                    }
+                    
+                    mapping.put(fieldName, i);
+                }
+            }
+        }
     }
 
     /**
@@ -826,6 +919,24 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      * 向Excel文件填充数据
      */
     private void fillDataToExcelFile(File outputFile, SingleSheetExportRequest request) throws IOException {
+        // 确保输出文件存在 - 如果不存在，从模板复制一份
+        File templateFile = null;
+        if (!outputFile.exists()) {
+            // 获取原始模板文件
+            String templatePath = getTemplatePath(request.getTemplatePath());
+            templateFile = new File(templatePath);
+            
+            if (!templateFile.exists()) {
+                throw new FileNotFoundException("模板文件不存在：" + templatePath);
+            }
+            
+            // 复制模板到输出位置
+            try (FileInputStream fis = new FileInputStream(templateFile);
+                 FileOutputStream fos = new FileOutputStream(outputFile)) {
+                fis.transferTo(fos);
+            }
+        }
+        
         // 读取已填充占位符的Excel文件，根据文件扩展名选择适当的Workbook类型
         if (outputFile.getName().toLowerCase().endsWith(".xlsx")) {
             try (FileInputStream fis = new FileInputStream(outputFile);

@@ -1,4 +1,4 @@
-    package com.sgcc.easyexcel.util;
+package com.sgcc.easyexcel.util;
 
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
@@ -695,6 +695,15 @@ public class ExcelTemplateUtil {
      * 使用POI直接替换模板中的占位符
      */
     public void replacePlaceholdersInTemplate(String templatePath, String outputPath, Map<String, Object> placeholders) throws ExcelExportException {
+        replacePlaceholdersInTemplate(templatePath, outputPath, placeholders, null);
+    }
+
+    /**
+     * 使用POI直接替换模板中的占位符
+     * 
+     * @param excludeRowNum 排除不替换的行号（1-based），通常是数据模板行
+     */
+    public void replacePlaceholdersInTemplate(String templatePath, String outputPath, Map<String, Object> placeholders, Integer excludeRowNum) throws ExcelExportException {
         try {
             // 根据文件扩展名选择适当的处理方式
             if (templatePath.toLowerCase().endsWith(".xlsx")) {
@@ -702,7 +711,7 @@ public class ExcelTemplateUtil {
                      XSSFWorkbook workbook = new XSSFWorkbook(fis)) {
                         
                     // 处理占位符
-                    processPlaceholdersInWorkbook(workbook, placeholders);
+                    processPlaceholdersInWorkbook(workbook, placeholders, excludeRowNum);
                         
                     // 保存到输出文件
                     try (FileOutputStream fos = new FileOutputStream(outputPath)) {
@@ -714,7 +723,7 @@ public class ExcelTemplateUtil {
                      HSSFWorkbook workbook = new HSSFWorkbook(fis)) {
                         
                     // 处理占位符
-                    processPlaceholdersInWorkbook(workbook, placeholders);
+                    processPlaceholdersInWorkbook(workbook, placeholders, excludeRowNum);
                         
                     // 保存到输出文件
                     try (FileOutputStream fos = new FileOutputStream(outputPath)) {
@@ -736,6 +745,13 @@ public class ExcelTemplateUtil {
      * 在工作簿中处理占位符
      */
     private void processPlaceholdersInWorkbook(Workbook workbook, Map<String, Object> placeholders) {
+        processPlaceholdersInWorkbook(workbook, placeholders, null);
+    }
+
+    /**
+     * 在工作簿中处理占位符
+     */
+    private void processPlaceholdersInWorkbook(Workbook workbook, Map<String, Object> placeholders, Integer excludeRowNum) {
         // 遍历所有Sheet
         for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
             Sheet sheet = workbook.getSheetAt(i);
@@ -743,6 +759,11 @@ public class ExcelTemplateUtil {
             // 遍历所有行和列
             for (Row row : sheet) {
                 if (row != null) {
+                    // 如果指定了排除行，则跳过
+                    if (excludeRowNum != null && row.getRowNum() == (excludeRowNum - 1)) {
+                        continue;
+                    }
+
                     for (Cell cell : row) {
                         if (cell != null && cell.getCellType() == CellType.STRING) {
                             String cellValue = cell.getStringCellValue();

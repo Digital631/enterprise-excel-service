@@ -258,81 +258,39 @@ public class ExcelExportServiceImpl implements ExcelExportService {
             throws Exception {
         long startTime = System.currentTimeMillis();
         
-        // 检查是否同时有占位符和数据填充需求
-        if ((request.getPlaceholders() != null && !request.getPlaceholders().isEmpty()) && 
-            (request.getData() != null && !request.getData().isEmpty())) {
-            // 先使用EasyExcel模板功能填充占位符
-            excelTemplateUtil.fillTemplate(templateFile.getAbsolutePath(), 
-                outputFile.getAbsolutePath(), 
-                null, // 先不填充数据，只填充占位符
-                request.getPlaceholders());
-            
-            // 然后使用POI直接填充数据到指定位置
-            fillDataToExcelFile(outputFile, request);
-        } else if (request.getPlaceholders() != null && !request.getPlaceholders().isEmpty()) {
-            // 只有占位符，使用EasyExcel模板功能
-            excelTemplateUtil.fillTemplate(templateFile.getAbsolutePath(), 
-                outputFile.getAbsolutePath(), 
-                null, 
-                request.getPlaceholders());
-            
-            // 如果需要更新Sheet名称，单独处理
-            if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
-                updateSheetName(outputFile, request.getSheetName());
-            }
-        } else if (request.getData() != null && !request.getData().isEmpty()) {
-            // 检查数据中是否包含文档级占位符
-            Map<String, Object> docPlaceholders = new HashMap<>(request.getPlaceholders() != null ? request.getPlaceholders() : new HashMap<>());
-            
-            // 只有当数据只有一行时，才尝试将其作为文档级占位符处理
-            // 如果是多行数据，将其视为文档级占位符会破坏后续的多行填充逻辑（因为占位符会被提前替换，导致无法定位列）
-            if (request.getData() != null && request.getData().size() == 1 && 
-                hasDocumentLevelPlaceholders(templateFile, request.getData().get(0))) {
-                docPlaceholders.putAll(request.getData().get(0));
-            }
-            
-            boolean hasDocPlaceholders = !docPlaceholders.isEmpty();
-            
-            if (hasDocPlaceholders) {
-                // 先处理文档级占位符，创建临时文件避免影响原始模板
-                String tempOutputPath = outputFile.getAbsolutePath() + ".tmp";
-                excelTemplateUtil.replacePlaceholdersInTemplate(templateFile.getAbsolutePath(), 
-                    tempOutputPath, 
-                    docPlaceholders);
-                
-                // 然后将处理后的文件重命名为最终输出文件
-                File tempFile = new File(tempOutputPath);
-                if (tempFile.exists()) {
-                    // 移动临时文件到最终输出位置
-                    try (FileInputStream fis = new FileInputStream(tempFile);
-                         FileOutputStream fos = new FileOutputStream(outputFile)) {
-                        fis.transferTo(fos);
+        // 1. 准备全局占位符（用于填充文档标题、日期、签字等）
+        Map<String, Object> globalPlaceholders = new HashMap<>(request.getPlaceholders() != null ? request.getPlaceholders() : new HashMap<>());
+        
+        // 自动从数据列表中提取字段作为全局占位符（例如 data 中包含 year, month, day, leaderSignature 等）
+        if (request.getData() != null && !request.getData().isEmpty()) {
+            // 将 data 列表中所有记录的非空字段都合并进来
+            for (Map<String, Object> dataRow : request.getData()) {
+                if (dataRow != null) {
+                    for (Map.Entry<String, Object> entry : dataRow.entrySet()) {
+                        // 只有非空值才存入占位符，避免被后续记录的空值覆盖
+                        if (entry.getValue() != null && !entry.getValue().toString().isEmpty()) {
+                            globalPlaceholders.put(entry.getKey(), entry.getValue());
+                        }
                     }
-                    tempFile.delete(); // 清理临时文件
                 }
-                
-                // 填充多行数据（此时文档级占位符已被处理）
-                fillDataToExcelFile(outputFile, request);
-                
-                // 如果需要更新Sheet名称，单独处理
-                if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
-                    updateSheetName(outputFile, request.getSheetName());
-                }
-            } else {
-                // 只有数据，使用POI直接填充
-                fillDataToExcelFile(outputFile, request);
             }
-        } else {
-            // 既没有占位符也没有数据，直接复制模板
-            try (FileInputStream fis = new FileInputStream(templateFile);
-                 FileOutputStream fos = new FileOutputStream(outputFile)) {
-                fis.transferTo(fos);
-            }
-            
-            // 如果需要更新Sheet名称，单独处理
-            if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
-                updateSheetName(outputFile, request.getSheetName());
-            }
+        }
+
+        // 2. 执行文档级占位符替换（使用 POI 以保真样式）
+        // 排除掉数据表格模板行（startRow），防止该行的占位符被提前替换导致无法识别列
+        excelTemplateUtil.replacePlaceholdersInTemplate(templateFile.getAbsolutePath(), 
+            outputFile.getAbsolutePath(), 
+            globalPlaceholders,
+            request.getStartRow());
+
+        // 3. 填充数据表格（POI 直接填充，支持样式复用和自动移行）
+        if (request.getData() != null && !request.getData().isEmpty()) {
+            fillDataToExcelFile(outputFile, request);
+        }
+
+        // 4. 处理 Sheet 名称更新
+        if (request.getSheetName() != null && !request.getSheetName().isEmpty()) {
+            updateSheetName(outputFile, request.getSheetName());
         }
 
         // 返回文件信息
@@ -574,6 +532,17 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         if (headerColumnMap.isEmpty()) {
             log.warn("未能找到列标题映射，无法填充数据。请检查模板占位符格式或指定正确的startRow。");
             return;
+        }
+
+        // 如果数据量大于1，且后续还有行内容（通常是页脚），则进行移行操作，防止覆盖
+        if (data.size() > 1 && actualStartRow + 1 <= sheet.getLastRowNum()) {
+            int shiftCount = data.size() - 1;
+            int lastRow = sheet.getLastRowNum();
+            // 只在有内容需要下移时才执行 shiftRows
+            if (lastRow > actualStartRow) {
+                // 为了保真，移动时需要处理合并单元格
+                sheet.shiftRows(actualStartRow + 1, lastRow, shiftCount, true, false);
+            }
         }
         
         // 按照计算出的起始行开始填充数据

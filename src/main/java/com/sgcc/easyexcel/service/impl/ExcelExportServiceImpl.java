@@ -534,9 +534,27 @@ public class ExcelExportServiceImpl implements ExcelExportService {
             return;
         }
 
-        // 如果数据量大于1，且后续还有行内容（通常是页脚），则进行移行操作，防止覆盖
-        if (data.size() > 1 && actualStartRow + 1 <= sheet.getLastRowNum()) {
-            int shiftCount = data.size() - 1;
+        // 2. 过滤数据：移除那些不包含任何表格字段的“元数据记录”（如仅包含年月日、签字的Map）
+        List<Map<String, Object>> tableData = data.stream()
+            .filter(row -> {
+                if (row == null) return false;
+                for (String templateField : headerColumnMap.keySet()) {
+                    String dataField = (fieldMapping != null && fieldMapping.containsKey(templateField)) 
+                        ? fieldMapping.get(templateField) : templateField;
+                    if (row.containsKey(dataField)) return true;
+                }
+                return false;
+            })
+            .collect(Collectors.toList());
+
+        if (tableData.isEmpty()) {
+            log.info("数据过滤后无有效的表格记录，跳过表格填充。");
+            return;
+        }
+
+        // 3. 如果数据量大于1，且后续还有行内容（通常是页脚），则进行移行操作，防止覆盖
+        if (tableData.size() > 1 && actualStartRow + 1 <= sheet.getLastRowNum()) {
+            int shiftCount = tableData.size() - 1;
             int lastRow = sheet.getLastRowNum();
             // 只在有内容需要下移时才执行 shiftRows
             if (lastRow > actualStartRow) {
@@ -545,8 +563,8 @@ public class ExcelExportServiceImpl implements ExcelExportService {
             }
         }
         
-        // 按照计算出的起始行开始填充数据
-        for (int i = 0; i < data.size(); i++) {
+        // 4. 按照过滤后的表格数据开始填充数据
+        for (int i = 0; i < tableData.size(); i++) {
             int currentRowNum = actualStartRow + i;
             Row row = sheet.getRow(currentRowNum);
             
@@ -562,7 +580,7 @@ public class ExcelExportServiceImpl implements ExcelExportService {
                 }
             }
             
-            Map<String, Object> rowData = data.get(i);
+            Map<String, Object> rowData = tableData.get(i);
             
             // 遍历表头列映射，填充数据
             for (Map.Entry<String, Integer> entry : headerColumnMap.entrySet()) {

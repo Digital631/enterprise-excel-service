@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel模板设计器 - Luckysheet</title>
+    
+    <!-- Luckysheet CSS -->
+    <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/css/pluginsCss.css' />
+    <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/plugins.css' />
+    <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/css/luckysheet.css' />
+    <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/assets/iconfont/iconfont.css' />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 左侧边栏 */
+        .sidebar {
+            width: 280px;
+            background: #fff;
+            border-right: 1px solid #e8e8e8;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.05);
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: #52c41a;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #73d13d;
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff7875;
+        }
+
+        .template-list {
+            margin-top: 16px;
+        }
+
+        .template-item {
+            padding: 12px;
+            background: #fafafa;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .template-item:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .template-item.active {
+            border-color: #667eea;
+            background: #f0f2ff;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .template-name {
+            font-weight: 500;
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        .template-meta {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .template-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .template-actions .btn {
+            padding: 4px 8px;
+            font-size: 11px;
+            margin-bottom: 0;
+            flex: 1;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            background: #fff;
+            border-bottom: 1px solid #e8e8e8;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 8px;
+            padding-right: 12px;
+            border-right: 1px solid #e8e8e8;
+        }
+
+        .toolbar-group:last-child {
+            border-right: none;
+            margin-left: auto;
+        }
+
+        .toolbar .btn {
+            width: auto;
+            padding: 8px 16px;
+            margin-bottom: 0;
+        }
+
+        .toolbar-separator {
+            width: 1px;
+            height: 24px;
+            background: #e8e8e8;
+        }
+
+        #luckysheet-container {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* 占位符面板 */
+        .placeholder-panel {
+            margin-top: 16px;
+            padding: 12px;
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            border-radius: 6px;
+        }
+
+        .placeholder-panel h4 {
+            font-size: 12px;
+            color: #52c41a;
+            margin-bottom: 8px;
+        }
+
+        .placeholder-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .placeholder-tag {
+            padding: 2px 8px;
+            background: #fff;
+            border: 1px solid #b7eb8f;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #52c41a;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .placeholder-tag:hover {
+            background: #52c41a;
+            color: white;
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .modal-close:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e8e8e8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .modal-footer .btn {
+            width: auto;
+            margin-bottom: 0;
+        }
+
+        /* 提示消息 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: white;
+            font-size: 13px;
+            z-index: 10001;
+            transform: translateX(400px);
+            transition: transform 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast-success {
+            background: #52c41a;
+        }
+
+        .toast-error {
+            background: #ff4d4f;
+        }
+
+        .toast-info {
+            background: #1890ff;
+        }
+
+        /* 文件上传区域 */
+        .upload-area {
+            border: 2px dashed #d9d9d9;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            background: #fafafa;
+            margin-bottom: 16px;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .upload-icon {
+            font-size: 36px;
+            margin-bottom: 8px;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 13px;
+        }
+
+        /* 加载状态 */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            margin-top: 16px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .empty-state-text {
+            font-size: 13px;
+        }
+
+        /* 隐藏Luckysheet的返回按钮 */
+        .luckysheet_info_detail .luckysheet_info_detail_back,
+        .luckysheet_info_detail_back {
+            display: none !important;
+        }
+
+        /* 字体管理面板 */
+        .font-panel {
+            margin-top: 16px;
+            padding: 12px;
+            background: #f0f2ff;
+            border: 1px solid #667eea;
+            border-radius: 6px;
+        }
+
+        .font-panel h4 {
+            font-size: 12px;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .font-upload-area {
+            border: 2px dashed #d9d9d9;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            background: #fff;
+            font-size: 12px;
+        }
+
+        .font-upload-area:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .font-list {
+            max-height: 120px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        .font-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px;
+            background: #fff;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 11px;
+            border: 1px solid #e8e8e8;
+        }
+
+        .font-item-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .font-item-delete {
+            color: #ff4d4f;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .font-item-delete:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 左侧边栏 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>📊 Excel模板设计器</h1>
+                <p>在线设计Excel导出模板</p>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="section-title">操作</div>
+                <button class="btn btn-primary" onclick="showNewTemplateModal()">
+                    ➕ 新建模板
+                </button>
+                <button class="btn btn-secondary" onclick="showImportModal()">
+                    📁 导入Excel
+                </button>
+                
+                <div class="section-title" style="margin-top: 20px;">模板列表</div>
+                <div id="templateList" class="template-list">
+                    <!-- 动态加载 -->
+                </div>
+                
+                <!-- 占位符面板 -->
+                <div id="placeholderPanel" class="placeholder-panel" style="display: none;">
+                    <h4>📌 模板占位符</h4>
+                    <div id="placeholderList" class="placeholder-list">
+                        <!-- 动态加载 -->
+                    </div>
+                    <p style="font-size: 11px; color: #999; margin-top: 8px;">
+                        点击占位符可复制到剪贴板
+                    </p>
+                </div>
+
+                <!-- 字体管理面板 -->
+                <div class="font-panel">
+                    <h4>🔤 自定义字体 
+                        <button onclick="refreshFontList()" style="float: right; font-size: 10px; padding: 2px 6px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer;">刷新</button>
+                    </h4>
+                    <div class="font-upload-area" id="fontUploadArea">
+                        <div style="font-size: 20px; margin-bottom: 4px;">📁</div>
+                        <div style="font-size: 11px; color: #666;">
+                            点击上传字体文件<br>
+                            <small>支持 .ttf, .otf, .woff, .woff2</small>
+                        </div>
+                        <input type="file" id="fontInput" accept=".ttf,.otf,.woff,.woff2" style="display: none;" multiple>
+                    </div>
+                    <div id="fontList" class="font-list">
+                        <!-- 动态加载字体列表 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <div class="toolbar">
+                <div class="toolbar-group">
+                    <button class="btn btn-success" onclick="saveTemplate()">
+                        💾 保存模板
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportExcel()">
+                        📥 导出Excel
+                    </button>
+                </div>
+                <div class="toolbar-group">
+                    <button class="btn btn-secondary" onclick="insertPlaceholder()">
+                        🔖 插入占位符
+                    </button>
+                </div>
+                <div class="toolbar-group">
+                    <span id="currentTemplate" style="font-size: 13px; color: #666;">
+                        未选择模板
+                    </span>
+                </div>
+            </div>
+            
+            <div id="luckysheet-container"></div>
+        </div>
+    </div>
+
+    <!-- 新建模板模态框 -->
+    <div class="modal" id="newTemplateModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新建模板</h3>
+                <button class="modal-close" onclick="closeModal('newTemplateModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">模板名称 *</label>
+                    <input type="text" class="form-input" id="newTemplateName" placeholder="输入模板名称，如：员工统计表">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">模板描述</label>
+                    <textarea class="form-input form-textarea" id="newTemplateDesc" placeholder="输入模板描述（可选）"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('newTemplateModal')">取消</button>
+                <button class="btn btn-primary" onclick="createNewTemplate()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入Excel模态框 -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>导入Excel文件</h3>
+                <button class="modal-close" onclick="closeModal('importModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">
+                        拖拽Excel文件到此处，或点击选择文件<br>
+                        <small>支持 .xlsx、.xls 格式</small>
+                    </div>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('importModal')">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 保存模板模态框 -->
+    <div class="modal" id="saveTemplateModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>保存模板</h3>
+                <button class="modal-close" onclick="closeModal('saveTemplateModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">模板名称 *</label>
+                    <input type="text" class="form-input" id="saveTemplateName" placeholder="输入模板名称">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">模板描述</label>
+                    <textarea class="form-input form-textarea" id="saveTemplateDesc" placeholder="输入模板描述（可选）"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" id="overwriteCheckbox"> 覆盖已存在的模板
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('saveTemplateModal')">取消</button>
+                <button class="btn btn-primary" onclick="confirmSaveTemplate()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 插入占位符模态框 -->
+    <div class="modal" id="placeholderModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>插入占位符</h3>
+                <button class="modal-close" onclick="closeModal('placeholderModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">占位符名称 *</label>
+                    <input type="text" class="form-input" id="placeholderName" placeholder="如：userName、companyName">
+                    <small style="color: #999; font-size: 12px;">
+                        占位符格式：${fieldName} 或 {fieldName}
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('placeholderModal')">取消</button>
+                <button class="btn btn-primary" onclick="confirmInsertPlaceholder()">插入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在处理...</div>
+    </div>
+
+    <!-- Toast提示 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Luckysheet JS -->
+    <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
+    
+    <script>
+        // 全局变量
+        let currentTemplateName = null;
+        let currentTemplateData = null;
+        const basePath = '/excel-service';
+
+        // 已上传的自定义字体列表
+        let customFonts = [];
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', async function() {
+            initLuckysheet();
+            loadTemplateList();
+            initUploadArea();
+            initFontUpload();
+            // 从服务器加载字体列表
+            await loadFontsFromServer();
+            initFontSelectorObserver();
+        });
+
+        // 初始化字体上传
+        function initFontUpload() {
+            const fontUploadArea = document.getElementById('fontUploadArea');
+            const fontInput = document.getElementById('fontInput');
+
+            fontUploadArea.addEventListener('click', () => fontInput.click());
+
+            fontInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFontUpload(e.target.files);
+                }
+            });
+
+            // 拖拽上传
+            fontUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fontUploadArea.style.borderColor = '#667eea';
+                fontUploadArea.style.background = '#f0f2ff';
+            });
+
+            fontUploadArea.addEventListener('dragleave', () => {
+                fontUploadArea.style.borderColor = '#d9d9d9';
+                fontUploadArea.style.background = '#fff';
+            });
+
+            fontUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fontUploadArea.style.borderColor = '#d9d9d9';
+                fontUploadArea.style.background = '#fff';
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFontUpload(files);
+                }
+            });
+        }
+
+        // 从服务器加载字体列表
+        async function loadFontsFromServer() {
+            try {
+                const response = await fetch(`${basePath}/designer/api/fonts/list`);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    customFonts = result.data.map(font => ({
+                        name: font.fontName,
+                        fileName: font.fileName,
+                        type: font.extension.replace('.', ''),
+                        size: font.size,
+                        sizeFormatted: font.sizeFormatted,
+                        isServerFont: true
+                    }));
+                    
+                    // 加载所有字体到页面
+                    for (const font of customFonts) {
+                        loadServerFontToPage(font);
+                    }
+                    
+                    renderFontList();
+                    console.log(`从服务器加载了 ${customFonts.length} 个字体`);
+                    
+                    // 延迟更新Luckysheet字体列表（确保Luckysheet已初始化）
+                    setTimeout(() => {
+                        updateLuckysheetFontList();
+                    }, 1000);
+                }
+            } catch (error) {
+                console.error('从服务器加载字体失败:', error);
+                showToast('从服务器加载字体失败', 'warning');
+            }
+        }
+
+        // 手动刷新字体列表
+        async function refreshFontList() {
+            await loadFontsFromServer();
+            updateLuckysheetFontList();
+            showToast('字体列表已刷新', 'success');
+        }
+
+        // 加载服务器字体到页面
+        function loadServerFontToPage(font) {
+            // 对文件名进行编码，处理特殊字符如括号
+            const encodedFileName = encodeURIComponent(font.fileName);
+            const fontUrl = `${basePath}/designer/api/fonts/download/${encodedFileName}`;
+            
+            // 创建@font-face CSS规则
+            const format = getFontFormat(font.type);
+            const cssRule = `
+                @font-face {
+                    font-family: '${font.name}';
+                    src: url('${fontUrl}') format('${format}');
+                    font-weight: normal;
+                    font-style: normal;
+                    font-display: swap;
+                }
+            `;
+            
+            // 将CSS添加到页面
+            injectFontCSS(cssRule, font.name);
+            
+            // 同时使用FontFace API加载（使用编码后的URL）
+            const fontFace = new FontFace(font.name, `url("${fontUrl}")`);
+            fontFace.load().then((loadedFace) => {
+                document.fonts.add(loadedFace);
+                console.log(`服务器字体 "${font.name}" 已加载到页面`);
+                // 刷新Luckysheet的字体列表
+                updateLuckysheetFontList();
+            }).catch((error) => {
+                console.error(`加载服务器字体 "${font.name}" 失败:`, error);
+                // 即使FontFace API失败，CSS方式可能已经生效
+                console.log(`尝试通过CSS方式使用字体 "${font.name}"`);
+                updateLuckysheetFontList();
+            });
+        }
+
+        // 获取字体格式
+        function getFontFormat(type) {
+            switch (type.toLowerCase()) {
+                case 'ttf': return 'truetype';
+                case 'otf': return 'opentype';
+                case 'woff': return 'woff';
+                case 'woff2': return 'woff2';
+                default: return 'truetype';
+            }
+        }
+
+        // 注入字体CSS到页面
+        function injectFontCSS(cssRule, fontName) {
+            let styleId = 'custom-fonts-style';
+            let styleElement = document.getElementById(styleId);
+            
+            if (!styleElement) {
+                styleElement = document.createElement('style');
+                styleElement.id = styleId;
+                document.head.appendChild(styleElement);
+                console.log('创建字体样式元素');
+            }
+            
+            // 检查是否已存在该字体的CSS
+            if (!styleElement.textContent.includes(`font-family: '${fontName}'`)) {
+                styleElement.textContent += cssRule;
+                console.log(`字体CSS "${fontName}" 已注入页面:`, cssRule);
+            } else {
+                console.log(`字体CSS "${fontName}" 已存在，跳过注入`);
+            }
+        }
+
+        // 处理字体上传
+        async function handleFontUpload(files) {
+            const validExtensions = ['.ttf', '.otf', '.woff', '.woff2'];
+            
+            for (const file of files) {
+                const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+                
+                if (!validExtensions.includes(ext)) {
+                    showToast(`不支持的字体格式: ${file.name}`, 'error');
+                    continue;
+                }
+
+                try {
+                    // 上传到服务器
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    const response = await fetch(`${basePath}/designer/api/fonts/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        const fontInfo = result.data;
+                        const fontObj = {
+                            name: fontInfo.fontName,
+                            fileName: fontInfo.fileName,
+                            type: fontInfo.extension.replace('.', ''),
+                            size: fontInfo.size,
+                            sizeFormatted: fontInfo.sizeFormatted,
+                            isServerFont: true
+                        };
+                        
+                        // 检查是否已存在
+                        if (!customFonts.find(f => f.fileName === fontObj.fileName)) {
+                            customFonts.push(fontObj);
+                            
+                            // 动态加载字体到页面
+                            loadServerFontToPage(fontObj);
+                            
+                            // 立即更新字体列表显示
+                            renderFontList();
+                            
+                            // 立即更新Luckysheet字体列表
+                            setTimeout(() => {
+                                updateLuckysheetFontList();
+                            }, 500);
+                            
+                            showToast(`字体 "${fontObj.name}" 上传成功`, 'success');
+                        } else {
+                            showToast(`字体 "${fontObj.name}" 已存在`, 'info');
+                        }
+                    } else {
+                        showToast(`上传失败: ${result.message}`, 'error');
+                    }
+                } catch (error) {
+                    showToast(`上传字体失败: ${error.message}`, 'error');
+                    console.error('字体上传错误:', error);
+                }
+            }
+        }
+
+        // 加载字体到页面（用于本地字体，已弃用）
+        function loadFontToPage(fontObj) {
+            const fontFace = new FontFace(fontObj.name, `url(${fontObj.data})`);
+            fontFace.load().then((loadedFace) => {
+                document.fonts.add(loadedFace);
+                console.log(`字体 "${fontObj.name}" 已加载到页面`);
+                // 刷新Luckysheet的字体列表
+                updateLuckysheetFontList();
+            }).catch((error) => {
+                console.error(`加载字体 "${fontObj.name}" 失败:`, error);
+            });
+        }
+
+        // 更新Luckysheet的字体列表
+        function updateLuckysheetFontList() {
+            // Luckysheet的字体选择器可能有多个，尝试多种选择器
+            const selectors = [
+                '.luckysheet-toolbar-select',  // 通用选择器
+                '.luckysheet-toolbar .luckysheet-toolbar-select',  // 工具栏内的选择器
+                'select.luckysheet-toolbar-select',  // select元素
+                '.luckysheet-toolbar-item select',  // 工具栏项内的select
+                '.luckysheet-toolbar-menu-button',  // 另一种可能的类名
+                '[data-tips="Font Family"] select',  // 根据提示文本查找
+                '[title*="字体"] select',  // 根据标题查找
+            ];
+            
+            let fontSelect = null;
+            
+            // 方法1：尝试特定选择器
+            for (const selector of selectors) {
+                try {
+                    const elements = document.querySelectorAll(selector);
+                    for (const el of elements) {
+                        // 检查是否是字体选择器（通常包含常见字体选项）
+                        if (el.tagName === 'SELECT' && el.innerHTML && 
+                            (el.innerHTML.includes('Arial') || el.innerHTML.includes('微软雅黑') || 
+                             el.innerHTML.includes('SimSun') || el.innerHTML.includes('宋体'))) {
+                            fontSelect = el;
+                            console.log(`通过选择器 ${selector} 找到字体选择器`);
+                            break;
+                        }
+                    }
+                    if (fontSelect) break;
+                } catch (e) {
+                    // 忽略选择器错误
+                }
+            }
+            
+            // 方法2：如果还没找到，遍历所有select元素
+            if (!fontSelect) {
+                const allSelects = document.querySelectorAll('select');
+                console.log(`页面上共有 ${allSelects.length} 个select元素`);
+                
+                for (const select of allSelects) {
+                    const html = select.innerHTML.toLowerCase();
+                    // 字体选择器通常包含这些字体
+                    if (html.includes('arial') || html.includes('times') || 
+                        html.includes('courier') || html.includes('微软雅黑') ||
+                        html.includes('simsun') || html.includes('宋体')) {
+                        fontSelect = select;
+                        console.log('通过遍历找到字体选择器:', select);
+                        break;
+                    }
+                }
+            }
+            
+            if (fontSelect) {
+                console.log('找到Luckysheet字体选择器:', fontSelect);
+                
+                // 获取当前已选的字体
+                const currentFont = fontSelect.value;
+                
+                // 构建新的字体列表（保留原有选项）
+                let existingOptions = '';
+                const options = fontSelect.querySelectorAll('option');
+                options.forEach(opt => {
+                    // 跳过已存在的自定义字体（避免重复）
+                    const isCustomFont = customFonts.some(f => f.name === opt.value);
+                    if (!isCustomFont && opt.value) {
+                        existingOptions += `<option value="${opt.value}">${opt.text || opt.innerText}</option>`;
+                    }
+                });
+                
+                // 添加自定义字体选项
+                let customOptions = '';
+                customFonts.forEach(font => {
+                    customOptions += `<option value="${font.name}" style="font-family: '${font.name}', sans-serif;">${font.name}</option>`;
+                });
+                
+                fontSelect.innerHTML = existingOptions + customOptions;
+                
+                // 恢复之前的选择
+                if (currentFont) {
+                    fontSelect.value = currentFont;
+                }
+                
+                console.log(`字体列表已更新，添加了 ${customFonts.length} 个自定义字体`);
+                return true;
+            } else {
+                console.warn('未找到Luckysheet字体选择器，页面上的select元素:', 
+                    Array.from(document.querySelectorAll('select')).map(s => ({
+                        class: s.className,
+                        id: s.id,
+                        firstOption: s.querySelector('option')?.text || '无选项'
+                    }))
+                );
+                return false;
+            }
+        }
+
+        // 监听字体选择器的变化，动态添加自定义字体选项
+        function initFontSelectorObserver() {
+            let retryCount = 0;
+            const maxRetries = 10;
+            
+            // 定期检查字体选择器是否存在
+            const checkInterval = setInterval(() => {
+                const result = updateLuckysheetFontList();
+                if (result) {
+                    console.log('字体选择器已找到并更新，停止检查');
+                    clearInterval(checkInterval);
+                } else {
+                    retryCount++;
+                    if (retryCount >= maxRetries) {
+                        console.warn(`字体选择器检查达到最大次数(${maxRetries})，停止检查`);
+                        clearInterval(checkInterval);
+                    }
+                }
+            }, 1000); // 每秒检查一次
+            
+            // 同时设置MutationObserver
+            const observer = new MutationObserver((mutations) => {
+                // 检查是否有新的select元素被添加
+                const selects = document.querySelectorAll('select');
+                let found = false;
+                
+                selects.forEach(select => {
+                    if (!select.getAttribute('data-custom-fonts-initialized')) {
+                        // 检查是否是字体选择器
+                        const html = select.innerHTML.toLowerCase();
+                        if (html.includes('arial') || html.includes('微软雅黑') || 
+                            html.includes('simsun') || html.includes('宋体')) {
+                            select.setAttribute('data-custom-fonts-initialized', 'true');
+                            found = true;
+                        }
+                    }
+                });
+                
+                if (found) {
+                    updateLuckysheetFontList();
+                }
+            });
+            
+            // 观察整个文档的变化
+            observer.observe(document.body, { childList: true, subtree: true });
+            
+            console.log('字体选择器监听器已启动');
+        }
+
+        // 渲染字体列表
+        function renderFontList() {
+            const container = document.getElementById('fontList');
+            
+            if (customFonts.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #999; font-size: 11px; padding: 10px;">暂无自定义字体</div>';
+                return;
+            }
+            
+            container.innerHTML = customFonts.map((font, index) => `
+                <div class="font-item">
+                    <span class="font-item-name" style="font-family: '${font.name}', sans-serif; font-size: 14px;">${font.name}</span>
+                    <span class="font-item-delete" onclick="deleteFont(${index})">删除</span>
+                </div>
+            `).join('');
+            
+            console.log('字体列表已渲染:', customFonts.map(f => f.name));
+            
+            // 强制重绘字体列表以应用新字体
+            setTimeout(() => {
+                const fontItems = container.querySelectorAll('.font-item-name');
+                fontItems.forEach((item, idx) => {
+                    if (customFonts[idx]) {
+                        item.style.fontFamily = `'${customFonts[idx].name}', sans-serif`;
+                    }
+                });
+            }, 100);
+        }
+
+        // 删除字体
+        async function deleteFont(index) {
+            const font = customFonts[index];
+            if (confirm(`确定要删除字体 "${font.name}" 吗？`)) {
+                try {
+                    // 如果是服务器字体，先删除服务器上的文件
+                    if (font.isServerFont) {
+                        const encodedFileName = encodeURIComponent(font.fileName);
+                        const response = await fetch(`${basePath}/designer/api/fonts/delete/${encodedFileName}`, {
+                            method: 'DELETE'
+                        });
+                        const result = await response.json();
+                        
+                        if (!result.success) {
+                            showToast(`删除失败: ${result.message}`, 'error');
+                            return;
+                        }
+                    }
+                    
+                    customFonts.splice(index, 1);
+                    renderFontList();
+                    showToast('字体已删除', 'success');
+                } catch (error) {
+                    showToast(`删除字体失败: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // 初始化Luckysheet
+        function initLuckysheet() {
+            luckysheet.create({
+                container: 'luckysheet-container',
+                title: 'Excel模板设计器',
+                lang: 'zh',
+                showtoolbar: true,
+                showinfobar: true,
+                showsheetbar: true,
+                showstatisticBar: true,
+                enableAddRow: true,
+                enableAddBackTop: true,
+                sheetFormulaBar: true,
+                // 禁用返回按钮 - 通过hook修改默认行为
+                hook: {
+                    workbookCreateAfter: function() {
+                        // 隐藏返回按钮
+                        const backBtn = document.querySelector('.luckysheet_info_detail_back');
+                        if (backBtn) {
+                            backBtn.style.display = 'none';
+                            backBtn.onclick = function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                showToast('当前已经是首页', 'info');
+                                return false;
+                            };
+                        }
+                    }
+                },
+                data: [{
+                    "name": "Sheet1",
+                    "color": "",
+                    "status": "1",
+                    "order": "0",
+                    "celldata": [],
+                    "config": {},
+                    "index": "0"
+                }]
+            });
+            
+            // 额外处理：通过CSS和JS双重确保返回按钮被禁用
+            setTimeout(() => {
+                disableBackButton();
+            }, 500);
+        }
+
+        // 禁用返回按钮
+        function disableBackButton() {
+            const backBtn = document.querySelector('.luckysheet_info_detail_back');
+            if (backBtn) {
+                backBtn.style.display = 'none';
+                backBtn.onclick = function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showToast('当前已经是首页', 'info');
+                    return false;
+                };
+            }
+            
+            // 监听DOM变化，确保按钮始终被禁用
+            const observer = new MutationObserver((mutations) => {
+                const btn = document.querySelector('.luckysheet_info_detail_back');
+                if (btn && btn.style.display !== 'none') {
+                    btn.style.display = 'none';
+                    btn.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        showToast('当前已经是首页', 'info');
+                        return false;
+                    };
+                }
+            });
+            
+            const infoBar = document.querySelector('.luckysheet_info_detail');
+            if (infoBar) {
+                observer.observe(infoBar, { childList: true, subtree: true });
+            }
+        }
+
+        // 加载模板列表
+        async function loadTemplateList() {
+            try {
+                showLoading(true);
+                const response = await fetch(`${basePath}/designer/api/templates`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderTemplateList(result.data);
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('加载模板列表失败：' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 渲染模板列表
+        function renderTemplateList(templates) {
+            const container = document.getElementById('templateList');
+            
+            if (templates.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📂</div>
+                        <div class="empty-state-text">暂无模板文件</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = templates.map(template => `
+                <div class="template-item ${template.fileName === currentTemplateName ? 'active' : ''}" 
+                     data-name="${template.fileName}">
+                    <div class="template-name">${template.fileName}</div>
+                    <div class="template-meta">
+                        ${template.fileSizeFormatted} · ${template.placeholderCount}个占位符
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); loadTemplate('${template.fileName}')">
+                            编辑
+                        </button>
+                        <button class="btn btn-secondary" onclick="event.stopPropagation(); downloadTemplate('${template.fileName}')">
+                            下载
+                        </button>
+                        <button class="btn btn-danger" onclick="event.stopPropagation(); deleteTemplate('${template.fileName}')">
+                            删除
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // 绑定点击事件
+            container.querySelectorAll('.template-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const name = item.dataset.name;
+                    loadTemplate(name);
+                });
+            });
+        }
+
+        // 加载模板
+        async function loadTemplate(templateName) {
+            try {
+                showLoading(true);
+                const response = await fetch(`${basePath}/designer/api/template/${encodeURIComponent(templateName)}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentTemplateName = templateName;
+                    currentTemplateData = result.data;
+                    
+                    // 更新Luckysheet数据
+                    if (result.data.sheets) {
+                        luckysheet.destroy();
+                        luckysheet.create({
+                            container: 'luckysheet-container',
+                            title: templateName,
+                            lang: 'zh',
+                            showtoolbar: true,
+                            showinfobar: true,
+                            showsheetbar: true,
+                            showstatisticBar: true,
+                            enableAddRow: true,
+                            enableAddBackTop: true,
+                            sheetFormulaBar: true,
+                            hook: {
+                                workbookCreateAfter: function() {
+                                    // 隐藏返回按钮
+                                    const backBtn = document.querySelector('.luckysheet_info_detail_back');
+                                    if (backBtn) {
+                                        backBtn.style.display = 'none';
+                                    }
+                                    // 更新字体列表
+                                    setTimeout(updateLuckysheetFontList, 100);
+                                }
+                            },
+                            data: result.data.sheets
+                        });
+                        
+                        // 额外处理：通过CSS和JS双重确保返回按钮被禁用
+                        setTimeout(() => {
+                            disableBackButton();
+                            updateLuckysheetFontList();
+                        }, 500);
+                    }
+                    
+                    // 更新当前模板显示
+                    document.getElementById('currentTemplate').textContent = `当前：${templateName}`;
+                    
+                    // 更新占位符面板
+                    updatePlaceholderPanel(result.data.placeholders || []);
+                    
+                    // 更新选中状态
+                    document.querySelectorAll('.template-item').forEach(item => {
+                        item.classList.toggle('active', item.dataset.name === templateName);
+                    });
+                    
+                    showToast('模板加载成功', 'success');
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('加载模板失败：' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 更新占位符面板
+        function updatePlaceholderPanel(placeholders) {
+            const panel = document.getElementById('placeholderPanel');
+            const list = document.getElementById('placeholderList');
+            
+            if (placeholders.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+            
+            panel.style.display = 'block';
+            list.innerHTML = placeholders.map(p => `
+                <span class="placeholder-tag" onclick="copyPlaceholder('${p}')">${p}</span>
+            `).join('');
+        }
+
+        // 复制占位符
+        function copyPlaceholder(placeholder) {
+            const text = `{${placeholder}}`;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast(`已复制：${text}`, 'success');
+            });
+        }
+
+        // 新建模板
+        function showNewTemplateModal() {
+            document.getElementById('newTemplateName').value = '';
+            document.getElementById('newTemplateDesc').value = '';
+            showModal('newTemplateModal');
+        }
+
+        function createNewTemplate() {
+            const name = document.getElementById('newTemplateName').value.trim();
+            if (!name) {
+                showToast('请输入模板名称', 'error');
+                return;
+            }
+            
+            // 清空Luckysheet
+            luckysheet.destroy();
+            luckysheet.create({
+                container: 'luckysheet-container',
+                title: name,
+                lang: 'zh',
+                showtoolbar: true,
+                showinfobar: true,
+                showsheetbar: true,
+                showstatisticBar: true,
+                enableAddRow: true,
+                enableAddBackTop: true,
+                sheetFormulaBar: true,
+                hook: {
+                    workbookCreateAfter: function() {
+                        const backBtn = document.querySelector('.luckysheet_info_detail_back');
+                        if (backBtn) {
+                            backBtn.style.display = 'none';
+                        }
+                        setTimeout(updateLuckysheetFontList, 100);
+                    }
+                },
+                data: [{
+                    "name": "Sheet1",
+                    "color": "",
+                    "status": "1",
+                    "order": "0",
+                    "celldata": [],
+                    "config": {},
+                    "index": "0"
+                }]
+            });
+            
+            // 额外处理
+            setTimeout(() => {
+                disableBackButton();
+                updateLuckysheetFontList();
+            }, 500);
+            
+            currentTemplateName = name;
+            document.getElementById('currentTemplate').textContent = `当前：${name}（未保存）`;
+            document.getElementById('placeholderPanel').style.display = 'none';
+            
+            closeModal('newTemplateModal');
+            showToast('新模板已创建，请设计后保存', 'success');
+        }
+
+        // 导入Excel
+        function showImportModal() {
+            showModal('importModal');
+        }
+
+        function initUploadArea() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    importExcel(e.target.files[0]);
+                }
+            });
+
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.style.borderColor = '#667eea';
+                uploadArea.style.background = '#f0f2ff';
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.style.borderColor = '#d9d9d9';
+                uploadArea.style.background = '#fafafa';
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.style.borderColor = '#d9d9d9';
+                uploadArea.style.background = '#fafafa';
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    importExcel(files[0]);
+                }
+            });
+        }
+
+        async function importExcel(file) {
+            try {
+                showLoading(true);
+                closeModal('importModal');
+                
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch(`${basePath}/designer/api/template/import`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentTemplateName = file.name;
+                    currentTemplateData = result.data;
+                    
+                    // 更新Luckysheet
+                    if (result.data.sheets) {
+                        luckysheet.destroy();
+                        luckysheet.create({
+                            container: 'luckysheet-container',
+                            title: file.name,
+                            lang: 'zh',
+                            showtoolbar: true,
+                            showinfobar: true,
+                            showsheetbar: true,
+                            showstatisticBar: true,
+                            enableAddRow: true,
+                            enableAddBackTop: true,
+                            sheetFormulaBar: true,
+                            hook: {
+                                workbookCreateAfter: function() {
+                                    const backBtn = document.querySelector('.luckysheet_info_detail_back');
+                                    if (backBtn) {
+                                        backBtn.style.display = 'none';
+                                    }
+                                    setTimeout(updateLuckysheetFontList, 100);
+                                }
+                            },
+                            data: result.data.sheets
+                        });
+                        
+                        // 额外处理
+                        setTimeout(() => {
+                            disableBackButton();
+                            updateLuckysheetFontList();
+                        }, 500);
+                    }
+                    
+                    document.getElementById('currentTemplate').textContent = `当前：${file.name}（已导入，请保存）`;
+                    showToast('Excel导入成功', 'success');
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('导入失败：' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 获取Luckysheet所有Sheet数据
+        function getLuckysheetData() {
+            const sheets = [];
+            const sheetOrder = luckysheet.getSheet().order;
+            
+            // 遍历所有sheet
+            luckysheet.getAllSheets().forEach((sheet, index) => {
+                const sheetData = {
+                    name: sheet.name,
+                    index: String(index),
+                    status: sheet.status,
+                    order: String(index),
+                    celldata: sheet.celldata || [],
+                    config: sheet.config || {},
+                    row: sheet.row || 50,
+                    column: sheet.column || 20
+                };
+                sheets.push(sheetData);
+            });
+            
+            return sheets;
+        }
+
+        // 保存模板
+        function saveTemplate() {
+            const sheets = luckysheet.getAllSheets();
+            if (!sheets || sheets.length === 0) {
+                showToast('没有可保存的内容', 'error');
+                return;
+            }
+            
+            document.getElementById('saveTemplateName').value = currentTemplateName || '';
+            showModal('saveTemplateModal');
+        }
+
+        async function confirmSaveTemplate() {
+            const name = document.getElementById('saveTemplateName').value.trim();
+            const desc = document.getElementById('saveTemplateDesc').value.trim();
+            const overwrite = document.getElementById('overwriteCheckbox').checked;
+            
+            if (!name) {
+                showToast('请输入模板名称', 'error');
+                return;
+            }
+            
+            try {
+                showLoading(true);
+                closeModal('saveTemplateModal');
+                
+                // 获取所有sheet数据 - 使用Luckysheet API
+                const allSheets = luckysheet.getAllSheets();
+                console.log('All sheets:', allSheets);
+                
+                const sheetsData = allSheets.map((sheet, index) => {
+                    // 获取每个sheet的详细数据
+                    const sheetData = luckysheet.getSheetData({
+                        sheetIndex: sheet.index
+                    });
+                    
+                    // 转换celldata格式
+                    let celldata = [];
+                    if (sheet.data && sheet.data.length > 0) {
+                        for (let r = 0; r < sheet.data.length; r++) {
+                            const row = sheet.data[r];
+                            if (row && row.length > 0) {
+                                for (let c = 0; c < row.length; c++) {
+                                    const cell = row[c];
+                                    if (cell && (cell.v !== null || cell.v !== undefined)) {
+                                        celldata.push({
+                                            r: r,
+                                            c: c,
+                                            v: cell
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    return {
+                        name: sheet.name || 'Sheet' + (index + 1),
+                        index: String(index),
+                        status: index === 0 ? '1' : '0',
+                        order: String(index),
+                        celldata: celldata,
+                        config: sheet.config || {},
+                        row: sheet.row || 50,
+                        column: sheet.column || 20
+                    };
+                });
+                
+                console.log('Sending data:', { templateName: name, sheets: sheetsData });
+                
+                const response = await fetch(`${basePath}/designer/api/template/save`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        templateName: name,
+                        description: desc,
+                        sheets: sheetsData,
+                        overwrite: overwrite
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentTemplateName = name;
+                    document.getElementById('currentTemplate').textContent = `当前：${name}`;
+                    showToast('模板保存成功', 'success');
+                    loadTemplateList();
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                showToast('保存失败：' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 导出Excel
+        async function exportExcel() {
+            if (!currentTemplateName) {
+                showToast('请先保存模板', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${basePath}/designer/api/template/export/${encodeURIComponent(currentTemplateName)}`);
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = currentTemplateName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    showToast('导出成功', 'success');
+                } else {
+                    showToast('导出失败', 'error');
+                }
+            } catch (error) {
+                showToast('导出失败：' + error.message, 'error');
+            }
+        }
+
+        // 下载模板
+        async function downloadTemplate(templateName) {
+            try {
+                const response = await fetch(`${basePath}/designer/api/template/export/${encodeURIComponent(templateName)}`);
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = templateName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    showToast('下载成功', 'success');
+                } else {
+                    showToast('下载失败', 'error');
+                }
+            } catch (error) {
+                showToast('下载失败：' + error.message, 'error');
+            }
+        }
+
+        // 删除模板
+        async function deleteTemplate(templateName) {
+            if (!confirm(`确定要删除模板 "${templateName}" 吗？`)) {
+                return;
+            }
+            
+            try {
+                showLoading(true);
+                const response = await fetch(`${basePath}/designer/api/template/${encodeURIComponent(templateName)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (currentTemplateName === templateName) {
+                        currentTemplateName = null;
+                        document.getElementById('currentTemplate').textContent = '未选择模板';
+                        document.getElementById('placeholderPanel').style.display = 'none';
+                    }
+                    showToast('删除成功', 'success');
+                    loadTemplateList();
+                } else {
+                    showToast(result.message, 'error');
+                }
+            } catch (error) {
+                showToast('删除失败：' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 插入占位符
+        function insertPlaceholder() {
+            document.getElementById('placeholderName').value = '';
+            showModal('placeholderModal');
+        }
+
+        function confirmInsertPlaceholder() {
+            const name = document.getElementById('placeholderName').value.trim();
+            if (!name) {
+                showToast('请输入占位符名称', 'error');
+                return;
+            }
+            
+            const placeholder = `{${name}}`;
+            
+            // 获取当前选中的单元格
+            const selection = luckysheet.getRange();
+            if (selection && selection.length > 0) {
+                const range = selection[0];
+                luckysheet.setCellValue(range.row[0], range.column[0], placeholder);
+                closeModal('placeholderModal');
+                showToast('占位符已插入', 'success');
+            } else {
+                showToast('请先选择单元格', 'error');
+            }
+        }
+
+        // 模态框操作
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        // 加载状态
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').classList.toggle('active', show);
+        }
+
+        // Toast提示
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast toast-${type}`;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // 点击模态框外部关闭
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -82,6 +82,17 @@ excel:
     # 是否记录详细日志
     detail-log: true
   
+  # 字体配置
+  font:
+    # 字体文件存储目录（默认使用用户主目录下的excel-service/fonts）
+    directory: ${excel.template.default-dir}/fonts
+    # 支持的字体格式
+    allowed-extensions:
+      - .ttf
+      - .otf
+      - .woff
+      - .woff2
+  
   # 线程池配置（高并发）
   thread-pool:
     # 核心线程数

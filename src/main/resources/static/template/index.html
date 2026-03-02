@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel模板配置管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1a1a1a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+
+        .upload-area {
+            border: 2px dashed #d9d9d9;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            background: #fafafa;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #e8ebff;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: #bfbfbf;
+            margin-bottom: 16px;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .upload-text span {
+            color: #667eea;
+            cursor: pointer;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff7875;
+        }
+
+        .btn-default {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-default:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: #52c41a;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #73d13d;
+        }
+
+        .template-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .template-card {
+            background: #fafafa;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .template-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .template-card.selected {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .template-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .template-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+
+        .template-info h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        .template-meta {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .template-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .status-configured {
+            background: #f6ffed;
+            color: #52c41a;
+            border: 1px solid #b7eb8f;
+        }
+
+        .status-unconfigured {
+            background: #fff7e6;
+            color: #fa8c16;
+            border: 1px solid #ffd591;
+        }
+
+        .template-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e8e8e8;
+        }
+
+        .template-actions .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .modal-close:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e8e8e8;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .mapping-table th,
+        .mapping-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .mapping-table th {
+            background: #fafafa;
+            font-weight: 600;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .mapping-table input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .mapping-table input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            overflow-x: auto;
+            display: block;
+        }
+
+        .preview-table th,
+        .preview-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border: 1px solid #e8e8e8;
+            white-space: nowrap;
+        }
+
+        .preview-table th {
+            background: #f0f2ff;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .preview-table tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+        }
+
+        .alert-error {
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #ff4d4f;
+        }
+
+        .alert-info {
+            background: #e6f7ff;
+            border: 1px solid #91d5ff;
+            color: #1890ff;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .sheet-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .sheet-tab {
+            padding: 6px 14px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .sheet-tab:hover {
+            background: #e0e0e0;
+        }
+
+        .sheet-tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .validation-result {
+            padding: 16px;
+            background: #fafafa;
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+
+        .validation-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .validation-item:last-child {
+            border-bottom: none;
+        }
+
+        .validation-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+        }
+
+        .validation-icon.success {
+            background: #52c41a;
+        }
+
+        .validation-icon.error {
+            background: #ff4d4f;
+        }
+
+        .validation-icon.warning {
+            background: #fa8c16;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 页面头部 -->
+        <div class="header">
+            <h1>📊 Excel模板配置管理</h1>
+            <p>上传、配置和管理Excel导出模板，支持字段映射和预览功能</p>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalTemplates">0</div>
+                <div class="stat-label">模板总数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="configuredTemplates">0</div>
+                <div class="stat-label">已配置</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="unconfiguredTemplates">0</div>
+                <div class="stat-label">待配置</div>
+            </div>
+        </div>
+
+        <!-- 上传区域 -->
+        <div class="card">
+            <div class="card-title">上传新模板</div>
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">
+                    拖拽文件到此处，或 <span>点击上传</span><br>
+                    <small>支持 .xlsx、.xls 格式的Excel文件</small>
+                </div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+            </div>
+        </div>
+
+        <!-- 模板列表 -->
+        <div class="card">
+            <div class="card-title">模板列表</div>
+            <div id="templateList" class="template-list">
+                <!-- 动态加载 -->
+            </div>
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <div class="empty-state-icon">📂</div>
+                <p>暂无模板文件，请上传Excel模板</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 配置模态框 -->
+    <div class="modal" id="configModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ 模板配置 - <span id="modalTemplateName"></span></h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tabs">
+                    <div class="tab active" data-tab="info">基本信息</div>
+                    <div class="tab" data-tab="mapping">字段映射</div>
+                    <div class="tab" data-tab="preview">数据预览</div>
+                    <div class="tab" data-tab="validate">验证</div>
+                </div>
+
+                <!-- 基本信息 -->
+                <div class="tab-content active" id="tab-info">
+                    <div id="templateInfo"></div>
+                </div>
+
+                <!-- 字段映射 -->
+                <div class="tab-content" id="tab-mapping">
+                    <div class="alert alert-info">
+                        💡 配置模板表头与数据字段的映射关系，导出时将自动匹配
+                    </div>
+                    <div id="mappingContent"></div>
+                </div>
+
+                <!-- 数据预览 -->
+                <div class="tab-content" id="tab-preview">
+                    <div id="sheetTabs" class="sheet-tabs"></div>
+                    <div id="previewContent"></div>
+                </div>
+
+                <!-- 验证 -->
+                <div class="tab-content" id="tab-validate">
+                    <button class="btn btn-primary" onclick="validateTemplate()">
+                        🔍 开始验证
+                    </button>
+                    <div id="validationResult"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-default" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveConfiguration()">保存配置</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentTemplate = null;
+        let currentTemplateInfo = null;
+        let currentMapping = {};
+        let currentSheetIndex = 0;
+
+        // 获取API基础路径
+        const basePath = '/excel-service';
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTemplates();
+            initUpload();
+            initTabs();
+        });
+
+        // 加载模板列表
+        async function loadTemplates() {
+            try {
+                const response = await fetch(`${basePath}/template/api/list`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderTemplates(result.data);
+                    updateStats(result.data);
+                } else {
+                    showAlert('加载模板列表失败：' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('加载模板列表失败：' + error.message, 'error');
+            }
+        }
+
+        // 更新统计信息
+        function updateStats(templates) {
+            const total = templates.length;
+            const configured = templates.filter(t => t.hasFieldMapping).length;
+            
+            document.getElementById('totalTemplates').textContent = total;
+            document.getElementById('configuredTemplates').textContent = configured;
+            document.getElementById('unconfiguredTemplates').textContent = total - configured;
+        }
+
+        // 渲染模板列表
+        function renderTemplates(templates) {
+            const container = document.getElementById('templateList');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (templates.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            container.innerHTML = templates.map(template => `
+                <div class="template-card" data-name="${template.fileName}">
+                    <div class="template-header">
+                        <div class="template-icon">📄</div>
+                        <div class="template-info">
+                            <h3>${template.fileName}</h3>
+                            <div class="template-meta">
+                                ${template.fileSizeFormatted} · ${template.sheets.length}个Sheet · ${formatDate(template.lastModified)}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="template-status ${template.hasFieldMapping ? 'status-configured' : 'status-unconfigured'}">
+                        ${template.hasFieldMapping ? '✓ 已配置' : '⚠ 待配置'}
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn btn-primary" onclick="openConfig('${template.fileName}')">
+                            ⚙️ 配置
+                        </button>
+                        <button class="btn btn-default" onclick="previewTemplate('${template.fileName}')">
+                            👁 预览
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteTemplate('${template.fileName}')">
+                            🗑 删除
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 格式化日期
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleString('zh-CN');
+        }
+
+        // 初始化上传功能
+        function initUpload() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    uploadFile(e.target.files[0]);
+                }
+            });
+
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    uploadFile(files[0]);
+                }
+            });
+        }
+
+        // 上传文件
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${basePath}/template/api/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('上传成功！', 'success');
+                    loadTemplates();
+                } else {
+                    showAlert('上传失败：' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('上传失败：' + error.message, 'error');
+            }
+        }
+
+        // 删除模板
+        async function deleteTemplate(templateName) {
+            if (!confirm(`确定要删除模板 "${templateName}" 吗？`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${basePath}/template/api/delete/${encodeURIComponent(templateName)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('删除成功！', 'success');
+                    loadTemplates();
+                } else {
+                    showAlert('删除失败：' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('删除失败：' + error.message, 'error');
+            }
+        }
+
+        // 打开配置模态框
+        async function openConfig(templateName) {
+            currentTemplate = templateName;
+            document.getElementById('modalTemplateName').textContent = templateName;
+            
+            try {
+                // 加载模板信息
+                const infoResponse = await fetch(`${basePath}/template/api/info/${encodeURIComponent(templateName)}`);
+                const infoResult = await infoResponse.json();
+                
+                if (infoResult.success) {
+                    currentTemplateInfo = infoResult.data;
+                    renderTemplateInfo(infoResult.data);
+                    renderMapping(infoResult.data);
+                    renderSheetTabs(infoResult.data.sheets);
+                }
+
+                // 加载字段映射
+                const mappingResponse = await fetch(`${basePath}/template/api/mapping/${encodeURIComponent(templateName)}`);
+                const mappingResult = await mappingResponse.json();
+                
+                if (mappingResult.success) {
+                    currentMapping = mappingResult.data || {};
+                    updateMappingInputs();
+                }
+
+                // 加载预览数据
+                loadPreviewData(templateName, 0);
+
+                document.getElementById('configModal').classList.add('active');
+            } catch (error) {
+                showAlert('加载模板信息失败：' + error.message, 'error');
+            }
+        }
+
+        // 渲染模板信息
+        function renderTemplateInfo(info) {
+            document.getElementById('templateInfo').innerHTML = `
+                <div class="form-group">
+                    <label class="form-label">文件名</label>
+                    <input type="text" class="form-input" value="${info.fileName}" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">文件路径</label>
+                    <input type="text" class="form-input" value="${info.filePath}" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">文件大小</label>
+                    <input type="text" class="form-input" value="${info.fileSizeFormatted}" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">最后修改时间</label>
+                    <input type="text" class="form-input" value="${formatDate(info.lastModified)}" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sheet数量</label>
+                    <input type="text" class="form-input" value="${info.sheets.length}" readonly>
+                </div>
+            `;
+        }
+
+        // 渲染字段映射
+        function renderMapping(info) {
+            const headers = info.sheets[0]?.headers || [];
+            
+            if (headers.length === 0) {
+                document.getElementById('mappingContent').innerHTML = `
+                    <div class="alert alert-info">该模板暂无表头信息</div>
+                `;
+                return;
+            }
+
+            document.getElementById('mappingContent').innerHTML = `
+                <table class="mapping-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40%">模板表头</th>
+                            <th style="width: 40%">映射字段名</th>
+                            <th style="width: 20%">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${headers.map(header => `
+                            <tr>
+                                <td>${header}</td>
+                                <td>
+                                    <input type="text" 
+                                           class="mapping-input" 
+                                           data-header="${header}" 
+                                           placeholder="输入字段名，如：userName"
+                                           value="${currentMapping[header] || ''}">
+                                </td>
+                                <td id="status-${header}">
+                                    ${currentMapping[header] ? '✓ 已映射' : '○ 未映射'}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            // 绑定输入事件
+            document.querySelectorAll('.mapping-input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const header = e.target.dataset.header;
+                    const value = e.target.value.trim();
+                    currentMapping[header] = value;
+                    
+                    const statusCell = document.getElementById(`status-${header}`);
+                    statusCell.innerHTML = value ? '✓ 已映射' : '○ 未映射';
+                });
+            });
+        }
+
+        // 更新映射输入框
+        function updateMappingInputs() {
+            document.querySelectorAll('.mapping-input').forEach(input => {
+                const header = input.dataset.header;
+                input.value = currentMapping[header] || '';
+                
+                const statusCell = document.getElementById(`status-${header}`);
+                if (statusCell) {
+                    statusCell.innerHTML = currentMapping[header] ? '✓ 已映射' : '○ 未映射';
+                }
+            });
+        }
+
+        // 渲染Sheet标签
+        function renderSheetTabs(sheets) {
+            const container = document.getElementById('sheetTabs');
+            container.innerHTML = sheets.map((sheet, index) => `
+                <button class="sheet-tab ${index === 0 ? 'active' : ''}" 
+                        onclick="switchSheet(${index})">
+                    ${sheet.sheetName || 'Sheet ' + (index + 1)}
+                </button>
+            `).join('');
+        }
+
+        // 切换Sheet
+        async function switchSheet(index) {
+            currentSheetIndex = index;
+            
+            document.querySelectorAll('.sheet-tab').forEach((tab, i) => {
+                tab.classList.toggle('active', i === index);
+            });
+
+            await loadPreviewData(currentTemplate, index);
+        }
+
+        // 加载预览数据
+        async function loadPreviewData(templateName, sheetIndex) {
+            try {
+                const response = await fetch(
+                    `${basePath}/template/api/preview/${encodeURIComponent(templateName)}?sheetIndex=${sheetIndex}`
+                );
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderPreview(result.data);
+                }
+            } catch (error) {
+                document.getElementById('previewContent').innerHTML = `
+                    <div class="alert alert-error">加载预览数据失败：${error.message}</div>
+                `;
+            }
+        }
+
+        // 渲染预览数据
+        function renderPreview(data) {
+            if (!data || data.length === 0) {
+                document.getElementById('previewContent').innerHTML = `
+                    <div class="alert alert-info">暂无数据预览</div>
+                `;
+                return;
+            }
+
+            const headers = Object.keys(data[0]);
+            
+            document.getElementById('previewContent').innerHTML = `
+                <div style="overflow-x: auto;">
+                    <table class="preview-table">
+                        <thead>
+                            <tr>
+                                ${headers.map(h => `<th>${h}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.map(row => `
+                                <tr>
+                                    ${headers.map(h => `<td>${row[h] || ''}</td>`).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <p style="margin-top: 10px; color: #999; font-size: 12px;">
+                    显示前 ${data.length} 行数据预览
+                </p>
+            `;
+        }
+
+        // 预览模板
+        async function previewTemplate(templateName) {
+            currentTemplate = templateName;
+            openConfig(templateName);
+            // 切换到预览标签
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector('[data-tab="preview"]').classList.add('active');
+            document.getElementById('tab-preview').classList.add('active');
+        }
+
+        // 验证模板
+        async function validateTemplate() {
+            const resultDiv = document.getElementById('validationResult');
+            resultDiv.innerHTML = '<div class="loading"></div> 正在验证...';
+
+            try {
+                const response = await fetch(
+                    `${basePath}/template/api/validate/${encodeURIComponent(currentTemplate)}`
+                );
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderValidationResult(result.data);
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="alert alert-error">验证失败：${error.message}</div>`;
+            }
+        }
+
+        // 渲染验证结果
+        function renderValidationResult(data) {
+            const errors = data.errors || [];
+            const warnings = data.warnings || [];
+            
+            let html = '<div class="validation-result">';
+            
+            // 总体状态
+            if (data.valid && errors.length === 0) {
+                html += `
+                    <div class="validation-item">
+                        <span class="validation-icon success">✓</span>
+                        <span>模板验证通过</span>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="validation-item">
+                        <span class="validation-icon error">✗</span>
+                        <span>模板验证未通过</span>
+                    </div>
+                `;
+            }
+
+            // 错误信息
+            errors.forEach(error => {
+                html += `
+                    <div class="validation-item">
+                        <span class="validation-icon error">!</span>
+                        <span style="color: #ff4d4f;">${error}</span>
+                    </div>
+                `;
+            });
+
+            // 警告信息
+            warnings.forEach(warning => {
+                html += `
+                    <div class="validation-item">
+                        <span class="validation-icon warning">⚠</span>
+                        <span style="color: #fa8c16;">${warning}</span>
+                    </div>
+                `;
+            });
+
+            // 统计信息
+            if (data.sheetCount !== undefined) {
+                html += `
+                    <div class="validation-item" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e8e8e8;">
+                        <span>Sheet数量：${data.sheetCount}</span>
+                    </div>
+                `;
+            }
+            if (data.fieldMappingCount !== undefined) {
+                html += `
+                    <div class="validation-item">
+                        <span>已配置字段映射：${data.fieldMappingCount} 个</span>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            document.getElementById('validationResult').innerHTML = html;
+        }
+
+        // 保存配置
+        async function saveConfiguration() {
+            try {
+                const response = await fetch(`${basePath}/template/api/mapping`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        templateName: currentTemplate,
+                        fieldMapping: currentMapping,
+                        matchStrategy: 'ignore-case'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('配置保存成功！', 'success');
+                    closeModal();
+                    loadTemplates();
+                } else {
+                    showAlert('保存失败：' + result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('保存失败：' + error.message, 'error');
+            }
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('configModal').classList.remove('active');
+            currentTemplate = null;
+            currentMapping = {};
+        }
+
+        // 初始化标签页
+        function initTabs() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                    
+                    tab.classList.add('active');
+                    document.getElementById(`tab-${tabName}`).classList.add('active');
+                });
+            });
+        }
+
+        // 显示提示
+        function showAlert(message, type) {
+            // 创建提示元素
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            alert.innerHTML = message;
+            
+            document.body.appendChild(alert);
+            
+            // 3秒后自动移除
+            setTimeout(() => {
+                alert.remove();
+            }, 3000);
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('configModal').addEventListener('click', (e) => {
+            if (e.target.id === 'configModal') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
